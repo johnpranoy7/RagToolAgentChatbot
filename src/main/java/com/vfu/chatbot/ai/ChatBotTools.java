@@ -1,99 +1,87 @@
 package com.vfu.chatbot.ai;
 
+import com.vfu.chatbot.exception.AiToolException;
+import com.vfu.chatbot.service.StreamXService;
+import com.vfu.chatbot.service.domain.PropertyResponse;
+import com.vfu.chatbot.service.domain.ReservationResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-
 @Component
 @Slf4j
 public class ChatBotTools {
 
-    private final PolicyRagService policyRagService;
-    private final PropertyInfoService propertyInfoService;
-    private final ReservationVerifyService reservationVerifyService;
+    private final StreamXService streamXService;
 
-    public ChatBotTools(PolicyRagService policyRagService, PropertyInfoService propertyInfoService, ReservationVerifyService reservationVerifyService) {
-        this.policyRagService = policyRagService;
-        this.propertyInfoService = propertyInfoService;
-        this.reservationVerifyService = reservationVerifyService;
+    public ChatBotTools(StreamXService streamXService) {
+        this.streamXService = streamXService;
     }
 
     @Tool(description = "Search hotel policies and rules by question")
     public String policy_rag_tool(
-            @ToolParam(description = "Policy question to search") String question) {
+            @ToolParam(description = "Policy question to search") String userQuestion) {
 
-        log.info("Policy RAG search: {}", question);
-        List<String> chunks = policyRagService.searchPolicyChunks(question);
-        return String.join("\n", chunks);
-    }
-
-    @Tool(description = "Get hotel property information by topic (wifi, parking, checkin time, etc.)")
-    public String property_info_tool(
-            @ToolParam(description = "Topic to search (wifi, parking, checkin, checkout)") String topic) {
-
-        log.info("Property info requested for: {}", topic);
-        return propertyInfoService.getPropertyInfo(topic);
+        log.info("Policy RAG search: {}", userQuestion);
+//        List<String> chunks = policyRagService.searchPolicyChunks(question);
+//        return String.join("\n", chunks);
+        return "Yet to implement RAG Search";
     }
 
     @Tool(description = """
-            Verifies a hotel reservation ownership and returns reservation details.
-            Use ONLY when user provides BOTH reservationId and lastName.
-            Returns structured JSON that you can use to answer reservation questions.
+            Get detailed property information. 
+            REQUIRES propertyId (numeric ID from reservation_info_tool response).
+            Input: ONLY the propertyId field value (e.g. "16268")
             """)
-    public ReservationResult reservation_verify_tool(
-            @ToolParam(description = "The 5-digit reservation ID") String reservationId,
-            @ToolParam(description = "Guest's last name as on booking") String lastName) {
+    public PropertyResponse property_info_tool(
+            @ToolParam(description = "Property ID from reservation (numeric ID only)") String propertyId)
+            throws AiToolException {
+        log.info("Property info requested for propertyId: {}", propertyId);
+        if (!propertyId.matches("\\d+")) {
+            throw new AiToolException("Invalid propertyId. Must be numeric ID from reservation.");
+        }
+        PropertyResponse propertyInfo = streamXService.getPropertyInfo(propertyId);
+        if (propertyInfo == null) {
+            throw new AiToolException("Property not found");
+        }
+        return propertyInfo;
+    }
+
+
+    @Tool(description = """
+            Verifies reservation ownership and returns details.
+            REQUIRES BOTH reservationId (6-digit) + lastName exactly as booked.
+            Returns JSON with propertyId needed for property_info_tool.
+            """)
+    public ReservationResponse reservation_info_tool(
+            @ToolParam(description = "5-digit reservation ID") String reservationId,
+            @ToolParam(description = "Last name EXACTLY as on booking") String lastName)
+            throws AiToolException {
+
+        // Input validation
+        if (!reservationId.matches("\\d{6}")) {
+            throw new AiToolException("Reservation ID must be 6 digits");
+        }
 
         log.info("Verifying reservation: {} - {}", reservationId, lastName);
+        ReservationResponse reservationInfo = streamXService.getReservationInfo(reservationId);
 
-        // Use your stub service (replace with real API later)
-        boolean verified = reservationVerifyService.verifyReservation(reservationId, lastName);
-
-        if (verified) {
-            return new ReservationResult(
-                    true,
-                    reservationId,
-                    "John " + lastName,
-                    "2026-03-01",
-                    "2026-03-03",
-                    "Deluxe King",
-                    "CONFIRMED",
-                    "Late checkout requested",
-                    "Grand Hotel Atlanta",
-                    "123 Peachtree St, Atlanta GA",
-                    "(404) 555-0123",
-                    "3:00 PM",
-                    "11:00 AM"
-            );
-        } else {
-            return ReservationResult.notFound(reservationId);
+        if (reservationInfo == null) {
+            throw new AiToolException("Reservation not found");
         }
+
+        // Null-safe case-insensitive comparison
+        String resLastName = reservationInfo.getLastName();
+        String resId = reservationInfo.getId();
+        if ((resId == null || !resId.equalsIgnoreCase(reservationId)) ||
+                (lastName == null || !lastName.equalsIgnoreCase(resLastName))) {
+            throw new AiToolException("Reservation ID and last name don't match");
+        }
+
+        log.info("Reservation verified successfully. PropertyId: {}", reservationInfo.getUnitId());
+        return reservationInfo;
     }
 
-    public record ReservationResult(
-            boolean found,
-            String reservationId,
-            String guestName,
-            String checkInDate,
-            String checkOutDate,
-            String roomType,
-            String status,
-            String specialRequests,
-            String propertyName,
-            String propertyAddress,
-            String propertyPhone,
-            String checkInTime,
-            String checkOutTime
-    ) {
-        public static ReservationResult notFound(String reservationId) {
-            return new ReservationResult(
-                    false, reservationId, null, null, null, null, null, null,
-                    null, null, null, null, null
-            );
-        }
-    }
 
 }

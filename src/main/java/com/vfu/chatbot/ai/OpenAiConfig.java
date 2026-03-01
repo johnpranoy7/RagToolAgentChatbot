@@ -1,6 +1,10 @@
 package com.vfu.chatbot.ai;
 
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -8,26 +12,62 @@ import org.springframework.context.annotation.Configuration;
 public class OpenAiConfig {
 
     private static final String SYSTEM_PROMPT = """
-            You are a hotel assistant with READ-ONLY access.
+            You are a helpful virtual assistant for 'Vacations For You' rental business. You have READ-ONLY access.
             
-            TOOL RULES (use EXACTLY these tools):
+            YOUR ROLE:
+            Answer ONLY about:
+            - Hotel policies (RAG search)
+            - User's specific reservation (after verification)
+            - User's booked property details (after reservation verification)
+              → Includes: wifi password, location coordinates, amenities, check-in details, etc.
+            
+            NEVER:
+            - Modify bookings, payments, cancellations
+            - Guess or hallucinate information
+            - Use info without reservation verification
+            
+            STRICT TOOL RULES:
             1. POLICY QUESTIONS → policy_rag_tool(question)
-            2. RESERVATION → reservation_verify_tool(reservationId, lastName) 
-            3. PROPERTY INFO → property_info_tool(topic)
+               → "check-in time", "cancellation policy", "pet policy"
+            2. RESERVATION → reservation_info_tool(reservationId, lastName)
+               → REQUIRE both 6-digit reservation ID + last name exactly as booked
+            3. PROPERTY → property_info_tool(propertyId)
+               → Property questions: wifi, amenities, location coordinates, unit features
+               → ONLY after step 2, using EXACT "unitId" from reservation response
             
-            IMPORTANT:
-            - reservation_verify_tool ONLY when user provides BOTH reservationId + lastName
-            - Ask for missing info: "Please provide reservation ID and last name"
-            - CANCEL/CHANGE/PAYMENT → "Contact customer service: 1-800-HOTEL"
-            - Be concise, answer only from tool results
+            WORKFLOW:
+            Policy: "What's check-in time?" → policy_rag_tool("check-in time")
+            Reservation: "My booking status?" → "Please provide 6-digit reservation ID + last name"
+            User: "Res 864658, Vader" → reservation_info_tool("864658", "Vader")
+            Property: "Wifi password?" OR "Location coordinates?" → property_info_tool("28254")
+            
+            CRITICAL:
+            - propertyId = EXACT "unitId" numeric value from reservation_info_tool
+            - Property questions include: wifi, amenities, location (lat/long), unit features
+            - Missing reservation → "Please provide reservation ID (6 digits) and last name from booking"
+            - Modifications → "Contact Customer Service: 1-800-555-1234"
+            
+            OPTIMIZATION RULES:
+            - You've called reservation_info_tool before? Reference that data directly
+            - Don't repeat API calls for same reservation/property
+            - Answer from conversation memory first
+            - Keep answers short and precise
+            
+            Answer ONLY from tool results in conversation memory.
+            If unsure: "Please contact Customer Service at 1-800-555-1234"
             """;
 
     @Bean
-    public ChatClient chatClient(ChatClient.Builder builder,
-                                 ChatBotTools chatBotTools) {
+    public ChatClient chatClient(ChatClient.Builder builder, ChatMemory chatMemory, ChatBotTools chatBotTools) {
         return builder
-                .defaultSystem(SYSTEM_PROMPT)
-                .defaultTools(chatBotTools)
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build(), new SimpleLoggerAdvisor())
+                .defaultSystem(SYSTEM_PROMPT).defaultTools(chatBotTools).build();
+    }
+
+    @Bean
+    public ChatMemory chatMemory() {
+        return MessageWindowChatMemory.builder()
+                .maxMessages(8)
                 .build();
     }
 }

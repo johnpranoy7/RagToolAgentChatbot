@@ -2,6 +2,7 @@ package com.vfu.chatbot.api;
 
 import com.vfu.chatbot.model.ChatRequest;
 import com.vfu.chatbot.model.ChatResponse;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -9,9 +10,15 @@ import org.springframework.web.bind.annotation.*;
 @CrossOrigin(origins = "*")
 public class ChatController {
 
+    private ChatClient chatClient;
+
+    public ChatController(ChatClient chatClient) {
+        this.chatClient = chatClient;
+    }
+
     @PostMapping
-    public ChatResponse chat(@RequestBody ChatRequest request) {
+    public String chat(@RequestBody ChatRequest request) {
         //TODO: Servicecall to ChatOrchestrator
-        return null;
+        return chatClient.prompt().user(u->u.text(request.message())).call().content();
     }
 }

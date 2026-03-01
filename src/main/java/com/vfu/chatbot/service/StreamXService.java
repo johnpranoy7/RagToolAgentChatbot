@@ -1,20 +1,20 @@
 package com.vfu.chatbot.service;
 
-import com.vfu.chatbot.service.domain.AmenityResponse;
 import com.vfu.chatbot.service.domain.LocationInfoResponse;
 import com.vfu.chatbot.service.domain.PropertyResponse;
 import com.vfu.chatbot.service.domain.ReservationResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
+import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-
+@Service
+@Slf4j
 public class StreamXService {
 
     private static @NonNull PropertyResponse getDummyPropertyInfo() {
         PropertyResponse property = new PropertyResponse();
 
-        property.setId("28254");
+        property.setId("777");
         property.setParentId(null);
         property.setSearchPosition("3");
         property.setLocalPhone("123-321-1234");
@@ -96,7 +96,7 @@ public class StreamXService {
 
     private static @NonNull ReservationResponse getDummyReservationInfo() {
         ReservationResponse res = new ReservationResponse();
-        res.setId("8646528");
+        res.setId("123456");
         res.setConfirmationId("8788");
         res.setCrossReferenceCode(null);
         res.setTaxExempt("0");
@@ -111,9 +111,9 @@ public class StreamXService {
         res.setEmail1(null);
         res.setEmail2(null);
         res.setTitle(null);
-        res.setFirstName("Darth");
-        res.setMiddleName(null);
-        res.setLastName("Vader");
+        res.setFirstName("Seth");
+        res.setMiddleName("Frekin");
+        res.setLastName("Rollins");
         res.setAddress(null);
         res.setAddress2(null);
         res.setCity("Tempe");
@@ -157,35 +157,6 @@ public class StreamXService {
         return res;
     }
 
-    private static @NonNull List<AmenityResponse> getDummyAmenityInfo() {
-        List<AmenityResponse> amenities = new ArrayList<>();
-
-        AmenityResponse amenity1 = new AmenityResponse();
-        amenity1.setId("170106");
-        amenity1.setGroupName("Amenities");
-        amenity1.setName("Internet");
-        amenities.add(amenity1);
-
-        AmenityResponse amenity2 = new AmenityResponse();
-        amenity2.setId("170102");
-        amenity2.setGroupName("Amenities");
-        amenity2.setName("Fireplace");
-        amenities.add(amenity2);
-
-        AmenityResponse amenity3 = new AmenityResponse();
-        amenity3.setId("170101");
-        amenity3.setGroupName("Amenities");
-        amenity3.setName("Wood Stove");
-        amenities.add(amenity3);
-
-        AmenityResponse amenity4 = new AmenityResponse();
-        amenity4.setId("170100");
-        amenity4.setGroupName("Amenities");
-        amenity4.setName("Air Conditioning");
-        amenities.add(amenity4);
-        return amenities;
-    }
-
     private static @NonNull LocationInfoResponse getDummyLocationInfo() {
         LocationInfoResponse location = new LocationInfoResponse();
 
@@ -203,20 +174,17 @@ public class StreamXService {
         return location;
     }
 
-    public ReservationResponse getReservationInfo(int confirmationId) {
+    public ReservationResponse getReservationInfo(String reservationId) {
         //TODO: REST Call to StreamX
         return getDummyReservationInfo();
     }
 
-    public PropertyResponse getPropertyInfo(int propertyId) {
+    public PropertyResponse getPropertyInfo(String propertyId) {
         return getDummyPropertyInfo();
     }
 
-    public List<AmenityResponse> getAmenitiesInfo() {
-        return getDummyAmenityInfo();
-    }
 
-    public LocationInfoResponse getLocationInfo(int locationId) {
+    public LocationInfoResponse getLocationInfo(String locationId) {
         return getDummyLocationInfo();
     }
 
