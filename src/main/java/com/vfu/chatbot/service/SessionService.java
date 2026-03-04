@@ -1,0 +1,78 @@
+package com.vfu.chatbot.service;
+
+
+import com.vfu.chatbot.model.SessionEntity;
+import com.vfu.chatbot.repository.SessionRepository;
+import com.vfu.chatbot.service.domain.ReservationResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class SessionService {
+
+    private final SessionRepository sessionRepository;
+
+    @Transactional
+    public String getOrCreateSessionId(String providedSessionId) {
+        if (providedSessionId != null && !providedSessionId.isEmpty()) {
+            return providedSessionId; // Use frontend-provided
+        }
+
+        // Generate new UUID sessionId
+        String newSessionId = UUID.randomUUID().toString();
+        log.info("Created new sessionId: {}", newSessionId);
+        return newSessionId;
+    }
+
+    public void saveVerifiedReservation(
+            String sessionId,
+            String reservationId,
+            String lastName,
+            String unitId) {
+
+        SessionEntity entity = SessionEntity.builder()
+                .sessionId(sessionId)
+                .reservationId(reservationId)
+                .lastName(lastName)
+                .unitId(unitId)
+                .verified(true)
+                .expiresAt(LocalDateTime.now().plusMinutes(60))
+                .build();
+
+        sessionRepository.save(entity);
+        log.info("Cached session: {} → unitId: {}", sessionId, unitId);
+    }
+
+    public Optional<SessionEntity> getActiveSession(String sessionId) {
+        return sessionRepository.findActiveBySessionId(sessionId);
+    }
+
+    /**
+     * Clear specific session
+     */
+    @Transactional
+    public void clearSession(String sessionId) {
+        sessionRepository.deleteById(sessionId);
+        log.info("Cleared session: {}", sessionId);
+    }
+
+    /**
+     * Clear ALL expired sessions (call periodically)
+     */
+    @Transactional
+    public void cleanupExpiredSessions() {
+        int deleted = sessionRepository.deleteAllByExpiresAtBefore(LocalDateTime.now());
+        if (deleted > 0) {
+            log.info("Cleaned {} expired sessions", deleted);
+        }
+    }
+}
+

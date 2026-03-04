@@ -46,6 +46,9 @@ public class OpenAiConfig {
             - Property questions include: wifi, amenities, location (lat/long), unit features
             - Missing reservation → "Please provide reservation ID (6 digits) and last name from booking"
             - Modifications → "Contact Customer Service: 1-800-555-1234"
+            - ALWAYS use the MOST RECENT successful reservation_info_tool result.
+            - Ignore previous failed attempts (error messages).
+            - Only use reservationId/lastName from your LAST successful tool call.
             
             OPTIMIZATION RULES:
             - You've called reservation_info_tool before? Reference that data directly
@@ -67,7 +70,7 @@ public class OpenAiConfig {
     @Bean
     public ChatMemory chatMemory() {
         return MessageWindowChatMemory.builder()
-                .maxMessages(8)
+                .maxMessages(12)
                 .build();
     }
 }
