@@ -5,6 +5,10 @@ import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
+import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
+import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -27,8 +31,8 @@ public class OpenAiConfig {
             - Use info without reservation verification
             
             STRICT TOOL RULES:
-            1. POLICY QUESTIONS → policy_rag_tool(question)
-               → "check-in time", "cancellation policy", "pet policy"
+            1. POLICY QUESTIONS → ALWAYS use policy_rag_tool(question)
+               → "check-in policy", "cancellation policy", "pet policy"
             2. RESERVATION → reservation_info_tool(reservationId, lastName)
                → REQUIRE both 6-digit reservation ID + last name exactly as booked
             3. PROPERTY → property_info_tool(propertyId)
@@ -62,6 +66,7 @@ public class OpenAiConfig {
 
     @Bean
     public ChatClient chatClient(ChatClient.Builder builder, ChatMemory chatMemory, ChatBotTools chatBotTools) {
+
         return builder
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build(), new SimpleLoggerAdvisor())
                 .defaultSystem(SYSTEM_PROMPT).defaultTools(chatBotTools).build();
@@ -73,4 +78,18 @@ public class OpenAiConfig {
                 .maxMessages(12)
                 .build();
     }
+
+//    @Bean
+//    public RetrievalAugmentationAdvisor ragAdvisor(PgVectorStore pgVectorStore,
+//                                                   EmbeddingModel embeddingModel) {
+//
+//        return RetrievalAugmentationAdvisor.builder()
+//                .documentRetriever(VectorStoreDocumentRetriever.builder()
+//                        .vectorStore(pgVectorStore)
+//                        .similarityThreshold(0.6)
+//                        .topK(5)
+////                        .filterExpression("metadata->>'doc_type' IN ('reservation', 'general')")
+//                        .build())
+//                .build();
+//    }
 }

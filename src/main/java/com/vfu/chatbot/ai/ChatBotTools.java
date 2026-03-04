@@ -8,13 +8,16 @@ import com.vfu.chatbot.service.domain.PropertyResponse;
 import com.vfu.chatbot.service.domain.ReservationResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ToolContext;
+import org.springframework.ai.document.Document;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Optional;
-
-import static org.springframework.web.util.WebUtils.getSessionId;
+import java.util.stream.Collectors;
 
 @Component
 @Slf4j
@@ -22,10 +25,12 @@ public class ChatBotTools {
 
     private final StreamXService streamXService;
     private final SessionService sessionService;
+    private final PgVectorStore vectorStore;
 
-    public ChatBotTools(StreamXService streamXService, SessionService sessionService) {
+    public ChatBotTools(StreamXService streamXService, SessionService sessionService, PgVectorStore vectorStore) {
         this.streamXService = streamXService;
         this.sessionService = sessionService;
+        this.vectorStore = vectorStore;
     }
 
     @Tool(description = "Search hotel policies and rules by question")
@@ -33,9 +38,17 @@ public class ChatBotTools {
             @ToolParam(description = "Policy question to search") String userQuestion) {
 
         log.info("Policy RAG search: {}", userQuestion);
-//        List<String> chunks = policyRagService.searchPolicyChunks(question);
-//        return String.join("\n", chunks);
-        return "Yet to implement RAG Search";
+        List<Document> results = vectorStore.similaritySearch(
+                SearchRequest.builder().query(userQuestion).topK(6).build()
+        );
+
+        if (results.isEmpty()) {
+            return "Contact Customer Service: 1-800-555-1234";
+        }
+
+        return results.stream()
+                .map(Document::getFormattedContent)
+                .collect(Collectors.joining("\n\n---\n\n"));
     }
 
     @Tool(description = """
