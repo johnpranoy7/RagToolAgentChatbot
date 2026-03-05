@@ -66,7 +66,8 @@ public class ChatBotTools {
         }
         String propertyId = activeSession.get().getUnitId();
 
-        log.info("Property info requested for unitId: {}", propertyId);
+        log.info("Property Tool search requested for sessionId:{}, propertyId:{}", activeSession.get(), propertyId);
+
         if (!propertyId.matches("\\d+")) {
             throw new AiToolException("Invalid propertyId. Must be numeric ID from reservation.");
         }
@@ -96,6 +97,8 @@ public class ChatBotTools {
         }
 
         log.info("Verifying reservation: {} - {}", confirmationId, lastName);
+        log.info("Reservation Tool search requested for sessionId:{}, confirmationId:{}, lastName:{}",
+                sessionId, confirmationId, lastName);
         ReservationResponse reservationInfo = streamXService.getReservationInfo(confirmationId);
 
         if (reservationInfo == null) {

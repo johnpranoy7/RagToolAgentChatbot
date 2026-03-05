@@ -2,11 +2,12 @@ package com.vfu.chatbot.model;
 
 
 public record ChatResponse(
-        String answer,
+        String content,
         double confidence,
-        String source
+        String source,
+        String sessionId
 ) {
-    public static ChatResponse of(String answer, double confidence, String source) {
-        return new ChatResponse(answer, confidence, source);
+    public static ChatResponse of(String content, double confidence, String source, String sessionId) {
+        return new ChatResponse(content, confidence, source, sessionId);
     }
 }
