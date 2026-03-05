@@ -80,23 +80,23 @@ public class ChatBotTools {
 
     @Tool(description = """
             Verifies reservation ownership and returns details.
-            REQUIRES BOTH reservationId (6-digit) + lastName + sessionId for toolContext.
+            REQUIRES BOTH confirmationId (6-digit) + lastName + sessionId for toolContext.
             Returns JSON with propertyId needed for property_info_tool.
             """)
     public ReservationResponse reservation_info_tool(
-            @ToolParam(description = "5-digit reservation ID") String reservationId,
+            @ToolParam(description = "6-digit confirmation ID") String confirmationId,
             @ToolParam(description = "Last name EXACTLY as on booking") String lastName, ToolContext toolContext)
             throws AiToolException {
 
         String sessionId = String.valueOf(toolContext.getContext().get("sessionId"));
 
         // Input validation
-        if (!reservationId.matches("\\d{6}")) {
+        if (!confirmationId.matches("\\d{6}")) {
             throw new AiToolException("Reservation ID must be 6 digits");
         }
 
-        log.info("Verifying reservation: {} - {}", reservationId, lastName);
-        ReservationResponse reservationInfo = streamXService.getReservationInfo(reservationId);
+        log.info("Verifying reservation: {} - {}", confirmationId, lastName);
+        ReservationResponse reservationInfo = streamXService.getReservationInfo(confirmationId);
 
         if (reservationInfo == null) {
             throw new AiToolException("Reservation not found");
@@ -105,14 +105,14 @@ public class ChatBotTools {
 
         // Null-safe case-insensitive comparison
         String resLastName = reservationInfo.getLastName();
-        String resId = reservationInfo.getId();
-        if ((resId == null || !resId.equalsIgnoreCase(reservationId)) ||
+        String resId = reservationInfo.getConfirmationId();
+        if ((resId == null || !resId.equalsIgnoreCase(confirmationId)) ||
                 (lastName == null || !lastName.equalsIgnoreCase(resLastName))) {
             sessionService.clearSession(sessionId);
             throw new AiToolException("Reservation ID and last name don't match");
         }
 
-        sessionService.saveVerifiedReservation(sessionId, reservationId, lastName, reservationInfo.getUnitId());
+        sessionService.saveVerifiedReservation(sessionId, confirmationId, lastName, reservationInfo.getUnitId());
 
         log.info("Reservation verified successfully. PropertyId: {}", reservationInfo.getUnitId());
         return reservationInfo;

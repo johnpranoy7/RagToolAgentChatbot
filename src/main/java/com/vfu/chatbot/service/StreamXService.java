@@ -1,15 +1,34 @@
 package com.vfu.chatbot.service;
 
-import com.vfu.chatbot.service.domain.LocationInfoResponse;
-import com.vfu.chatbot.service.domain.PropertyResponse;
-import com.vfu.chatbot.service.domain.ReservationResponse;
+import com.vfu.chatbot.exception.AiToolException;
+import com.vfu.chatbot.service.domain.*;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 @Slf4j
 public class StreamXService {
+
+    @Value("${streamx.endpoint.tokenKey}")
+    private String STREAMX_ENDPOINT_TOKEN_KEY;
+    @Value("${streamx.endpoint.tokenSecret}")
+    private String STREAMX_ENDPOINT_TOKEN_SECRET;
+
+    public StreamXService(@Value("${streamx.endpoint.baseurl}") String baseUrl) {
+        this.restClient = RestClient.builder().baseUrl(baseUrl)
+                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .build();
+    }
 
     private static @NonNull PropertyResponse getDummyPropertyInfo() {
         PropertyResponse property = new PropertyResponse();
@@ -174,13 +193,82 @@ public class StreamXService {
         return location;
     }
 
-    public ReservationResponse getReservationInfo(String reservationId) {
+    private final RestClient restClient;
+
+    public ReservationResponse getReservationInfo(String reservationId) throws AiToolException {
         //TODO: REST Call to StreamX
-        return getDummyReservationInfo();
+        HashMap<String, String> paramsMap = new HashMap<>();
+        paramsMap.put("confirmation_id", reservationId);
+
+        System.out.println( createAndCallStreamXEndpointString("GetReservationInfo", paramsMap));
+        StreamXData streamXData = createAndCallStreamXEndpoint("GetReservationInfo", paramsMap).getData();
+        return streamXData.getReservation();
+//        return getDummyReservationInfo();
     }
 
-    public PropertyResponse getPropertyInfo(String propertyId) {
-        return getDummyPropertyInfo();
+    private String createAndCallStreamXEndpointString(String methodName, Map<String, String> params) throws AiToolException{
+        StreamxRequest sr = new StreamxRequest();
+        sr.methodName = methodName;
+        sr.params = params;
+        sr.params.put("token_key", STREAMX_ENDPOINT_TOKEN_KEY);
+        sr.params.put("token_secret", STREAMX_ENDPOINT_TOKEN_SECRET);
+        return restClient.post().body(sr).retrieve()
+                .onStatus(HttpStatusCode::is4xxClientError,
+                        (req, res) -> {
+                            try {
+                                log.info("4xx error");
+                                throw new AiToolException("StreamX Client error: " + res.getStatusText());
+                            } catch (AiToolException e) {
+                                throw new RuntimeException(e);
+                            }
+                        })
+                .onStatus(HttpStatusCode::is5xxServerError,
+                        (req, res) -> {
+                            try {
+                                log.info("5xx error");
+                                throw new AiToolException("StreamX Server error");
+                            } catch (AiToolException e) {
+
+                                throw new RuntimeException(e);
+                            }
+                        })
+                .body(String.class);
+    }
+
+    private StreamxResponse createAndCallStreamXEndpoint(String methodName, Map<String, String> params) throws AiToolException{
+        StreamxRequest sr = new StreamxRequest();
+        sr.methodName = methodName;
+        sr.params = params;
+        sr.params.put("token_key", STREAMX_ENDPOINT_TOKEN_KEY);
+        sr.params.put("token_secret", STREAMX_ENDPOINT_TOKEN_SECRET);
+        return restClient.post().body(sr).retrieve()
+                .onStatus(HttpStatusCode::is4xxClientError,
+                        (req, res) -> {
+                            try {
+                                log.info("4xx error");
+                                throw new AiToolException("StreamX Client error: " + res.getStatusText());
+                            } catch (AiToolException e) {
+                                throw new RuntimeException(e);
+                            }
+                        })
+                .onStatus(HttpStatusCode::is5xxServerError,
+                        (req, res) -> {
+                            try {
+                                log.info("5xx error");
+                                throw new AiToolException("StreamX Server error");
+                            } catch (AiToolException e) {
+
+                                throw new RuntimeException(e);
+                            }
+                        })
+                .body(StreamxResponse.class);
+    }
+
+    public PropertyResponse getPropertyInfo(String propertyId) throws AiToolException {
+        HashMap<String, String> paramsMap = new HashMap<>();
+        paramsMap.put("unit_id", propertyId);
+        return createAndCallStreamXEndpoint("GetPropertyInfo", paramsMap).getData();
+//        return getDummyPropertyInfo();
     }
 
 

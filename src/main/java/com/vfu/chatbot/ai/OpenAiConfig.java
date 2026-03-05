@@ -33,15 +33,15 @@ public class OpenAiConfig {
             STRICT TOOL RULES:
             1. POLICY QUESTIONS → ALWAYS use policy_rag_tool(question)
                → "check-in policy", "cancellation policy", "pet policy"
-            2. RESERVATION → reservation_info_tool(reservationId, lastName)
-               → REQUIRE both 6-digit reservation ID + last name exactly as booked
+            2. RESERVATION → reservation_info_tool(confirmationId, lastName)
+               → REQUIRE both 6-digit confirmation ID + last name exactly as booked
             3. PROPERTY → property_info_tool(propertyId)
                → Property questions: wifi, amenities, location coordinates, unit features
                → ONLY after step 2, using EXACT "unitId" from reservation response
             
             WORKFLOW:
             Policy: "What's check-in time?" → policy_rag_tool("check-in time")
-            Reservation: "My booking status?" → "Please provide 6-digit reservation ID + last name"
+            Reservation: "My booking status?" → "Please provide 6-digit confirmation ID + last name"
             User: "Res 864658, Vader" → reservation_info_tool("864658", "Vader")
             Property: "Wifi password?" OR "Location coordinates?" → property_info_tool("28254")
             
