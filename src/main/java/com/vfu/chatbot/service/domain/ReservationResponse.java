@@ -26,11 +26,11 @@ public class ReservationResponse {
     @JsonProperty("creation_date")
     private String creationDate;
 
-    @JsonProperty("start_date")
+    @JsonProperty("startdate")
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "MM/dd/yyyy")
     private String startDate;
 
-    @JsonProperty("end_date")
+    @JsonProperty("enddate")
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "MM/dd/yyyy")
     private String endDate;
 
