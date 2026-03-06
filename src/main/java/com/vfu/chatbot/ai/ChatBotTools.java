@@ -63,23 +63,37 @@ public class ChatBotTools {
             throws AiToolException {
 
         String sessionId = String.valueOf(toolContext.getContext().get("sessionId"));
-        Optional<SessionEntity> activeSession = sessionService.getActiveSession(sessionId);
+        try {
+            Optional<SessionEntity> activeSession = sessionService.getActiveSession(sessionId);
 
-        if (activeSession.isEmpty()) {
-            throw new AiToolException("Missing Session ID");
-        }
-        String propertyId = activeSession.get().getUnitId();
+            if (activeSession.isEmpty()) {
+                throw new AiToolException("Missing Session ID");
+            }
+            String propertyId = activeSession.get().getUnitId();
 
-        log.info("Property Tool search requested for sessionId:{}, propertyId:{}", activeSession.get(), propertyId);
+            log.info("Property Tool search requested for sessionId:{}, propertyId:{}", activeSession.get(), propertyId);
 
-        if (!propertyId.matches("\\d+")) {
-            throw new AiToolException("Invalid propertyId. Must be numeric ID from reservation.");
+            if (!propertyId.matches("\\d+")) {
+                throw new AiToolException("Invalid propertyId. Must be numeric ID from reservation.");
+            }
+            PropertyResponse propertyInfo;
+            try {
+                propertyInfo = streamXService.getPropertyInfo(propertyId);
+            } catch (Exception e) {
+                log.error("STREAMX API FAILED for propertyId='{}', sessionId='{}': {}",
+                        propertyId, sessionId, e.getMessage(), e);
+                throw new AiToolException("Error Fetching Property Data: " + e.getMessage());
+            }
+
+            if (propertyInfo == null) {
+                throw new AiToolException("Property not found");
+            }
+            return propertyInfo;
+        } catch (Exception ex) {
+            log.error("UNEXPECTED ERROR in property_info_tool for sessionId:'{}' : {}",
+                    sessionId, ex.getMessage(), ex);
+            throw new AiToolException("Internal error processing reservation");
         }
-        PropertyResponse propertyInfo = streamXService.getPropertyInfo(propertyId);
-        if (propertyInfo == null) {
-            throw new AiToolException("Property not found");
-        }
-        return propertyInfo;
     }
 
 
@@ -94,35 +108,48 @@ public class ChatBotTools {
             throws AiToolException {
 
         String sessionId = String.valueOf(toolContext.getContext().get("sessionId"));
+        try {
+            // Input validation
+            if (!confirmationId.matches("\\d{6}")) {
+                throw new AiToolException("Reservation ID must be 6 digits");
+            }
 
-        // Input validation
-        if (!confirmationId.matches("\\d{6}")) {
-            throw new AiToolException("Reservation ID must be 6 digits");
+            log.info("Verifying reservation: {} - {}", confirmationId, lastName);
+            log.info("Reservation Tool search requested for sessionId:{}, confirmationId:{}, lastName:{}",
+                    sessionId, confirmationId, lastName);
+
+            ReservationResponse reservationInfo;
+            try {
+                reservationInfo = streamXService.getReservationInfo(confirmationId);
+            } catch (Exception e) {
+                log.error("STREAMX API FAILED for confirmationId='{}', sessionId='{}': {}",
+                        confirmationId, sessionId, e.getMessage(), e);
+                throw new AiToolException("Error Fetching Reservation Data: " + e.getMessage());
+            }
+
+            if (reservationInfo == null) {
+                log.error("RESERVATION NULL RESPONSE from streamXService for confirmationId='{}', sessionId='{}'", confirmationId, sessionId);
+                throw new AiToolException("Reservation not found");
+            }
+
+            // Null-safe case-insensitive comparison
+            String resLastName = reservationInfo.getLastName();
+            String resId = reservationInfo.getConfirmationId();
+            if ((resId == null || !resId.equalsIgnoreCase(confirmationId)) ||
+                    (lastName == null || !lastName.equalsIgnoreCase(resLastName))) {
+                sessionService.clearSession(sessionId);
+                throw new AiToolException("Reservation ID and last name don't match");
+            }
+
+            sessionService.saveVerifiedReservation(sessionId, confirmationId, lastName, reservationInfo.getUnitId());
+
+            log.info("Reservation verified successfully. PropertyId: {}", reservationInfo.getUnitId());
+            return reservationInfo;
+        } catch (Exception ex) {
+            log.error("UNEXPECTED ERROR in reservation_info_tool - sessionId:'{}', confirmationId:'{}', lastName:'{}': {}",
+                    sessionId, confirmationId, lastName, ex.getMessage(), ex);
+            throw new AiToolException("Internal error processing reservation");
         }
-
-        log.info("Verifying reservation: {} - {}", confirmationId, lastName);
-        log.info("Reservation Tool search requested for sessionId:{}, confirmationId:{}, lastName:{}",
-                sessionId, confirmationId, lastName);
-        ReservationResponse reservationInfo = streamXService.getReservationInfo(confirmationId);
-
-        if (reservationInfo == null) {
-            throw new AiToolException("Reservation not found");
-        }
-
-
-        // Null-safe case-insensitive comparison
-        String resLastName = reservationInfo.getLastName();
-        String resId = reservationInfo.getConfirmationId();
-        if ((resId == null || !resId.equalsIgnoreCase(confirmationId)) ||
-                (lastName == null || !lastName.equalsIgnoreCase(resLastName))) {
-            sessionService.clearSession(sessionId);
-            throw new AiToolException("Reservation ID and last name don't match");
-        }
-
-        sessionService.saveVerifiedReservation(sessionId, confirmationId, lastName, reservationInfo.getUnitId());
-
-        log.info("Reservation verified successfully. PropertyId: {}", reservationInfo.getUnitId());
-        return reservationInfo;
     }
 
 
