@@ -184,4 +184,12 @@ public class ReservationResponse {
     @JsonProperty("travelagent_name")
     private String travelagentName;
 
+    @JsonProperty("check_in_time")
+    private String checkInTime;
+
+    @JsonProperty("check_out_time")
+    private String checkOutTime;
+
+    @JsonProperty("client_age")
+    private String clientAge;
 }
