@@ -12,6 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -120,9 +121,9 @@ public class StreamXService {
         res.setCrossReferenceCode(null);
         res.setTaxExempt("0");
         res.setClientId("4435997");
-        res.setCreationDate("09/18/2017 01:02:47");
-        res.setStartDate("10/05/2018");
-        res.setEndDate("10/08/2018");
+//        res.setCreationDate(LocalDate.now());
+//        res.setStartDate(LocalDate.now().minusDays(10));
+//        res.setEndDate(LocalDate.now().plusDays(5));
         res.setOccupants("2");
         res.setOccupantsSmall("0");
         res.setPets("0");

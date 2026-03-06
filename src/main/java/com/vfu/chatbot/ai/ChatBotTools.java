@@ -35,7 +35,7 @@ public class ChatBotTools {
 
     @Tool(description = "Search hotel policies and rules by question")
     public String policy_rag_tool(
-            @ToolParam(description = "Policy question to search") String userQuestion) {
+            @ToolParam(description = "Policy question to search") String userQuestion, ToolContext toolContext) {
 
         log.info("Policy RAG search: {}", userQuestion);
         List<Document> results = vectorStore.similaritySearch(
@@ -52,8 +52,12 @@ public class ChatBotTools {
     }
 
     @Tool(description = """
-            Get detailed property information. 
-            REQUIRES propertyId (numeric ID from reservation_info_tool response).
+            Returns property details for the user's verified reservation.
+            
+            This tool does NOT accept propertyId from the user.
+            The propertyId is automatically retrieved from the verified session.
+            
+            Use ONLY after reservation_info_tool succeeds.
             """)
     public PropertyResponse property_info_tool(ToolContext toolContext)
             throws AiToolException {

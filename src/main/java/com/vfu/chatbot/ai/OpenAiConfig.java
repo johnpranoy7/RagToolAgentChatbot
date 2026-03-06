@@ -3,16 +3,8 @@ package com.vfu.chatbot.ai;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
-import org.springframework.ai.chat.evaluation.FactCheckingEvaluator;
-import org.springframework.ai.chat.evaluation.RelevancyEvaluator;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
-import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
-import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -39,9 +31,11 @@ public class OpenAiConfig {
                → "check-in policy", "cancellation policy", "pet policy"
             2. RESERVATION → reservation_info_tool(confirmationId, lastName)
                → REQUIRE both 6-digit confirmation ID + last name exactly as booked
-            3. PROPERTY → property_info_tool(propertyId)
-               → Property questions: wifi, amenities, location coordinates, unit features
-               → ONLY after step 2, using EXACT "unitId" from reservation response
+            3. PROPERTY → property_info_tool()
+               → Used for property questions:
+                     wifi password, amenities, location coordinates, unit features
+               → ONLY after reservation_info_tool succeeds
+               → The system automatically retrieves the propertyId from the verified session
             
             **MANDATORY RESPONSE FORMAT:**
             **ANSWER:** [Clean user message]
@@ -49,19 +43,22 @@ public class OpenAiConfig {
             **SOURCE:** [Exact source from rules below]
             
             **CONFIDENCE & SOURCE RULES (MANDATORY - Use These Exact Values):**
-            - policy_rag_tool used → **CONFIDENCE:** 0.98 **SOURCE:** POLICY RAG
-            - reservation_info_tool used → **CONFIDENCE:** 0.92 **SOURCE:** RESERVATION
-            - property_info_tool used → **CONFIDENCE:** 0.92 **SOURCE:** PROPERTY
-            - asking for reservation ID → **CONFIDENCE:** 0.85 **SOURCE:** MEMORY
-            - from chat memory → **CONFIDENCE:** 0.85 **SOURCE:** MEMORY
-            - no tools used → **CONFIDENCE:** 0.40 **SOURCE:** GENERAL
-            - unknown/no info → **CONFIDENCE:** 0.00 **SOURCE:** NONE
+            • policy_rag_tool used → 0.98 POLICY RAG
+            • reservation_info_tool used → 0.92 RESERVATION \s
+            • property_info_tool used → 0.92 PROPERTY
+            • asking for reservation ID → 0.85 MEMORY
+            • simple math on tool data → 0.80 CALCULATION
+            • from chat memory → 0.85 MEMORY
+            • no tools/no data → 0.00 NONE → "**Contact Customer Service: 1-800-555-1234**"
+            
+            **LOW CONFIDENCE RULE (MANDATORY):**
+            If confidence <0.75 → "**ANSWER:** For accurate information, please contact Customer Service: 1-800-555-1234 **CONFIDENCE:** 0.00 **SOURCE:** NONE"
             
             WORKFLOW:
             Policy: "What's check-in time?" → policy_rag_tool("check-in time")
             Reservation: "My booking status?" → "Please provide 6-digit confirmation ID + last name"
             User: "Res 864658, Vader" → reservation_info_tool("864658", "Vader")
-            Property: "Wifi password?" OR "Location coordinates?" → property_info_tool("28254")
+            Property: "Wifi password?" OR "Location coordinates?" → property_info_tool()
             
             CRITICAL:
             - propertyId = EXACT "unitId" numeric value from reservation_info_tool
