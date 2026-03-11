@@ -1,0 +1,49 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/vfu_chatbot}
+    username: ${POSTGRES_USER:root}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jackson:
+    date-format: "MM/dd/yyyy"
+    deserialization:
+      fail-on-unknown-properties: false
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        show_sql: true
+
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-4o-mini
+          temperature: 0.1
+          max-tokens: 300
+      embedding:
+        options:
+          model: text-embedding-3-small   # 1536 dimensions
+    vectorstore:
+      pgvector:
+        initialize-schema: true           # auto-create vector table
+        distance-type: COSINE_DISTANCE
+        dimensions: 1536
+
+app:
+  jina:
+    api-key: ${JINA_API_KEY:dummy}
+  vfu:
+    customer-service-phone: ${CUSTOMER_SUPPORT_PHONE}
+    customer-service-email: ${CUSTOMER_SUPPORT_EMAIL}
+
+streamx:
+  endpoint:
+    baseurl: ${STREAMX_URL}
+    tokenKey: ${STREAMX_KEY}
+    tokenSecret: ${STREAMX_SECRET}

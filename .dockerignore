@@ -1,0 +1,25 @@
+# Git
+.git
+.gitignore
+
+# Maven
+target/
+*.log
+.mvn
+mvnw
+mvnw.cmd
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local config
+application-dev.yml
+docker-compose.yml
+.env
+secrets/
