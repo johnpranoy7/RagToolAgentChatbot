@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class StreamXData extends PropertyResponse{
+public class StreamxData extends PropertyResponse{
     @JsonProperty("reservation")
     ReservationResponse reservation;
 

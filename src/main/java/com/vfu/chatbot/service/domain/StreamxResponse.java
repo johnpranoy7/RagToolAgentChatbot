@@ -10,5 +10,5 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class StreamxResponse {
     @JsonProperty("data")
-    StreamXData data;
+    StreamxData data;
 }
