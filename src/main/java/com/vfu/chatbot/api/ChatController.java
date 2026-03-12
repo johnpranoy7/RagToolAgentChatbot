@@ -37,25 +37,15 @@ public class ChatController {
         String sessionId = chatRequest.sessionId();
         if (sessionId == null || sessionId.isEmpty()) {
             sessionId = UUID.randomUUID().toString();
-            // Set sessionId in response header
-            httpResponse.setHeader("X-Session-ID", sessionId);
         }
 
-        // 2. CSRF Protection (Spring Security)
-        String csrfToken = extractCsrfToken(httpRequest);
-//        validateCsrf(csrfToken, request.csrfToken());
-
-        //TODO: Servicecall to ChatOrchestrator
-//        String sessionId = chatRequest.sessionId() == null ? UUID.randomUUID().toString() : chatRequest.sessionId();
         String finalSessionId = sessionId;
-
-
         String rawResponse = chatClient.prompt().user(u -> u.text(chatRequest.message()))
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, finalSessionId))
                 .toolContext(Map.of("sessionId", sessionId))
                 .call().content();
 
-        // 2. ✅ PARSE CONFIDENCE & SOURCE (your exact format)
+        // 2. PARSE CONFIDENCE & SOURCE (your exact format)
         String answer = extractContent(rawResponse);
         double confidenceFromLLM = extractConfidence(rawResponse);
         String source = extractSource(rawResponse);
