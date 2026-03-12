@@ -3,6 +3,8 @@ package com.vfu.chatbot.api;
 import com.vfu.chatbot.model.ChatRequest;
 import com.vfu.chatbot.model.ChatResponse;
 import com.vfu.chatbot.service.ConfidenceService;
+import io.github.resilience4j.ratelimiter.RequestNotPermitted;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -31,9 +33,8 @@ public class ChatController {
     }
 
     @PostMapping
-    public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest chatRequest, HttpServletRequest httpRequest,
-                                             HttpServletResponse httpResponse) {
-        // 1. Get sessionId (body/header fallback)
+    @RateLimiter(name = "rateLimitingApi", fallbackMethod = "chatRateLimited")
+    public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest chatRequest) {
         String sessionId = chatRequest.sessionId();
         if (sessionId == null || sessionId.isEmpty()) {
             sessionId = UUID.randomUUID().toString();
@@ -61,11 +62,18 @@ public class ChatController {
 
     }
 
+    public ResponseEntity<ChatResponse> chatRateLimited(
+            @RequestBody ChatRequest chatRequest, RequestNotPermitted ex) {
+        log.warn("Rate limit exceeded for session: {}, :{}", chatRequest.sessionId(), ex.getMessage());
 
-
-    private String extractCsrfToken(HttpServletRequest request) {
-        return (String) request.getAttribute("_csrf");
+        return ResponseEntity.status(429)
+                .header("Retry-After", "60")
+                .body(new ChatResponse(
+                        "Too many messages. Please wait 1 minute (20 msg/min limit).",
+                        0.0, "rate-limit", chatRequest.sessionId()
+                ));
     }
+
 
     private String extractContent(String rawResponse) {
         // Everything before **CONFIDENCE:**

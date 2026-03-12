@@ -35,6 +35,30 @@ spring:
         distance-type: COSINE_DISTANCE
         dimensions: 1536
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, ratelimiters, ratelimiterevents, metrics  # Expose endpoints
+  endpoint:
+    health:
+      show-details: always
+  health:
+    ratelimiters:
+      enabled: true
+
+resilience4j.ratelimiter:
+  instances:
+    rateLimitingApi:
+      limit-for-period: 30        # 30 requests
+      limit-refresh-period: 1m    # per minute
+      timeout-duration: 500ms     # wait max 500ms
+      register-health-indicator: true
+      event-consumer-buffer-size: 100
+  metrics:
+    enabled: true
+
+
 app:
   jina:
     api-key: ${JINA_API_KEY:dummy}

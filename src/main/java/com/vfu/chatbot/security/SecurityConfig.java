@@ -25,7 +25,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource())) // ✅ No CSRF 403s
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/index.html", "/static/**", "/api/**").permitAll()  // ✅ All your endpoints
+                        .requestMatchers("/", "/index.html", "/static/**", "/actuator/**", "/api/**").permitAll()  // ✅ All your endpoints
                         .anyRequest().authenticated()
                 )
                 .build();
