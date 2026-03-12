@@ -7,6 +7,7 @@ import com.vfu.chatbot.service.StreamXService;
 import com.vfu.chatbot.service.domain.PropertyResponse;
 import com.vfu.chatbot.service.domain.ReservationResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.boot.jaxb.hbm.transform.PropertyInfo;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.tool.annotation.Tool;

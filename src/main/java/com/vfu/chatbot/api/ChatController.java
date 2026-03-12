@@ -34,11 +34,13 @@ public class ChatController {
     @RateLimiter(name = "rateLimitingApi", fallbackMethod = "chatRateLimited")
     public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest chatRequest) {
         String sessionId = chatRequest.sessionId();
-        if (sessionId == null || sessionId.isEmpty()) {
+        log.info("sessionId: {}", sessionId);
+        if (sessionId == null || sessionId.equalsIgnoreCase("unknown") || sessionId.isEmpty()) {
             sessionId = UUID.randomUUID().toString();
         }
 
         String finalSessionId = sessionId;
+        log.info("finalsessionId: {}", finalSessionId);
         String rawResponse = chatClient.prompt().user(u -> u.text(chatRequest.message()))
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, finalSessionId))
                 .toolContext(Map.of("sessionId", sessionId))

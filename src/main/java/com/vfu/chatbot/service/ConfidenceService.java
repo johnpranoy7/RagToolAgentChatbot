@@ -17,7 +17,7 @@ public class ConfidenceService {
     public double evaluateConfidence(String question, String answer) {
 
         String judgePrompt = """
-                    Rate ONLY factual correctness (0.00-1.00).
+                    Rate ONLY factual correctness (0.00-1.00) for this vacation rental chatbot.
                     Question: %s
                     Answer: %s
                     Rules:

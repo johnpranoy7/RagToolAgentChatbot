@@ -594,8 +594,9 @@
     </div>
 </div>
 <script>
-    let SESSION_ID = localStorage.getItem('chatSessionId') || null;
     const messagesArea = document.getElementById('messagesArea');
+    let SESSION_ID = localStorage.getItem('chatSessionId') !=null || localStorage.getItem('chatSessionId') !== "unknown"
+        ? localStorage.getItem( 'chatSessionId') : null;
     const inputField = document.getElementById('inputField');
     const sendBtn = document.getElementById('sendBtn');
 
@@ -662,7 +663,7 @@
                 },
                 body: JSON.stringify({
                     message: text,
-                    sessionId: SESSION_ID  // Send sessionId
+                    sessionId: SESSION_ID?.replace('unknown', '') || ''
                 }),
             });
 
