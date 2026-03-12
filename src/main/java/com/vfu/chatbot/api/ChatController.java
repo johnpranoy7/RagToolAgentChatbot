@@ -5,8 +5,6 @@ import com.vfu.chatbot.model.ChatResponse;
 import com.vfu.chatbot.service.ConfidenceService;
 import io.github.resilience4j.ratelimiter.RequestNotPermitted;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -48,13 +46,28 @@ public class ChatController {
 
         // 2. PARSE CONFIDENCE & SOURCE (your exact format)
         String answer = extractContent(rawResponse);
-        double confidenceFromLLM = extractConfidence(rawResponse);
+        double ruleConfidence = extractConfidence(rawResponse);
         String source = extractSource(rawResponse);
 
         // For API using LLM Confidence, for RAG and General Chat using LLM-AS-Judge implementation
-        double confidence = confidenceService.calculateConfidence(chatRequest.message(), answer, source, confidenceFromLLM);
+        double judgeConfidence = confidenceService.calculateConfidence(chatRequest.message(), answer, source, ruleConfidence);
+        log.info("message from rule LLM :{} and source:{}", answer, source);
+        log.info("Confidence in Controller from rule is {}, judge:{}", ruleConfidence, judgeConfidence);
+        ChatResponse chatResponse;
 
-        ChatResponse chatResponse = new ChatResponse(answer, confidence, source, sessionId);
+        if(source.equalsIgnoreCase("NONE")) {
+            chatResponse = new ChatResponse(answer, ruleConfidence, "RULE_FALLBACK", sessionId);
+        }
+        else if (ruleConfidence >= 0.8) {
+            // Tool-backed → Trust rules, deliver
+            chatResponse = new ChatResponse(answer, ruleConfidence, source, sessionId);
+        } else if (judgeConfidence >= 0.6) {
+            // Judge confident enough → Deliver
+            chatResponse = new ChatResponse(answer, judgeConfidence, source, sessionId);
+        } else {
+            // Both low → Agent escalation
+            return agentEscalation(sessionId);
+        }
 
         return ResponseEntity.ok()
                 .header("X-Session-ID", sessionId)  // Always return
@@ -71,6 +84,16 @@ public class ChatController {
                 .body(new ChatResponse(
                         "Too many messages. Please wait 1 minute (20 msg/min limit).",
                         0.0, "rate-limit", chatRequest.sessionId()
+                ));
+    }
+
+    private ResponseEntity<ChatResponse> agentEscalation(String sessionId) {
+        return ResponseEntity.ok()
+                .body(new ChatResponse(
+                        "I am not able to help here. Could you please connect with Customer Support Agent",
+                        0.0,
+                        "AGENT_ESCALATION",
+                        sessionId
                 ));
     }
 

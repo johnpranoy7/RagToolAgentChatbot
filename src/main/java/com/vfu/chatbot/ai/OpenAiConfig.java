@@ -43,6 +43,7 @@ public class OpenAiConfig {
             **SOURCE:** [Exact source from rules below]
             
             **CONFIDENCE & SOURCE RULES (MANDATORY - Use These Exact Values):**
+            • greeting detected (hey, hi, hello) → 0.98 GREETING
             • policy_rag_tool used → 0.98 POLICY RAG
             • reservation_info_tool used → 0.92 RESERVATION \s
             • property_info_tool used → 0.92 PROPERTY

@@ -676,7 +676,7 @@
             // Map your backend response format
             appendMessage('bot', data.content || data.response, {
                 intent: data.source || 'general',
-                confidence: data.confidence || 0.5
+                confidence: data.confidence || 0.0
             });
         } catch (err) {
             hideTyping();

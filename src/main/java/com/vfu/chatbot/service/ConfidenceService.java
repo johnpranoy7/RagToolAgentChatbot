@@ -17,18 +17,15 @@ public class ConfidenceService {
     public double evaluateConfidence(String question, String answer) {
 
         String judgePrompt = """
-                Evaluate the confidence of the following AI answer.
-                
-                Question: %s
-                
-                Answer: %s
-                
-                Score confidence between 0.00 and 1.00 based on:
-                - factual correctness
-                - completeness
-                - clarity
-                
-                Return ONLY a number between 0 and 1.
+                    Rate ONLY factual correctness (0.00-1.00).
+                    Question: %s
+                    Answer: %s
+                    Rules:
+                    Score confidence between 0.00 and 1.00 based on:
+                     - factual correctness
+                     - completeness
+                     - clarity
+                    Return ONLY number (no text).
                 """.formatted(question, answer);
 
         String response = chatClient.prompt()
@@ -51,8 +48,10 @@ public class ConfidenceService {
 
             case "RESERVATION":
             case "PROPERTY":
+            case "GREETING":
                 return llmConfidence; // deterministic API
-
+            case "NONE":
+                return 0.0;
             default:
                 double confidenceFromLlmAsJudge = this.evaluateConfidence(question, answer);
                 log.info("Confidence from LLM is {}, confidenceFromLlmAsJudge:{}", llmConfidence, confidenceFromLlmAsJudge);
