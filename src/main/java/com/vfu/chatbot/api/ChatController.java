@@ -1,5 +1,6 @@
 package com.vfu.chatbot.api;
 
+import com.vfu.chatbot.analytics.ChatAnalyticsService;
 import com.vfu.chatbot.model.ChatRequest;
 import com.vfu.chatbot.model.ChatResponse;
 import com.vfu.chatbot.service.ConfidenceService;
@@ -17,20 +18,22 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @RestController
-@RequestMapping("/api/chat")
+@RequestMapping("/api")
 @CrossOrigin(origins = "*")
 @Slf4j
 public class ChatController {
 
     private final ChatClient chatClient;
     private final ConfidenceService confidenceService;
+    private final ChatAnalyticsService  chatAnalyticsService;
 
-    public ChatController(ChatClient chatClient, ConfidenceService confidenceService) {
+    public ChatController(ChatClient chatClient, ConfidenceService confidenceService, ChatAnalyticsService chatAnalyticsService) {
         this.chatClient = chatClient;
         this.confidenceService = confidenceService;
+        this.chatAnalyticsService = chatAnalyticsService;
     }
 
-    @PostMapping
+    @PostMapping("/chat")
     @RateLimiter(name = "rateLimitingApi", fallbackMethod = "chatRateLimited")
     public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest chatRequest) {
         String sessionId = chatRequest.sessionId();
@@ -57,6 +60,9 @@ public class ChatController {
         log.info("Confidence in Controller from rule is {}, judge:{}", ruleConfidence, judgeConfidence);
         ChatResponse chatResponse;
 
+        chatAnalyticsService.logChat(sessionId, chatRequest.message(), answer, ruleConfidence >=0.8 ? ruleConfidence: judgeConfidence,
+                source);
+
         if(source.equalsIgnoreCase("NONE")) {
             chatResponse = new ChatResponse(answer, ruleConfidence, "RULE_FALLBACK", sessionId);
         }
@@ -75,6 +81,11 @@ public class ChatController {
                 .header("X-Session-ID", sessionId)  // Always return
                 .body(chatResponse);
 
+    }
+
+    @GetMapping("dashboard")
+    public Map<String, Object> chat() {
+        return chatAnalyticsService.getDashboardStats();
     }
 
     public ResponseEntity<ChatResponse> chatRateLimited(
