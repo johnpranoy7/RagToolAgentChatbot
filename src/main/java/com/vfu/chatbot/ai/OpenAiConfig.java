@@ -45,6 +45,7 @@ public class OpenAiConfig {
                → Default: tourism.attraction,tourism.sights,heritage,leisure
                → "restaurants" → catering.*, "grocery" → commercial.supermarket
                → Use for: "What's nearby?", "Restaurants?", "Grocery?", "Things to do?"
+               → Display the List with name, address, phone for each record. Towards the end, show the source as GEOAPIFY_PLACES with confidence value.
             
             **MANDATORY RESPONSE FORMAT:**
             **ANSWER:** [Clean user message]
