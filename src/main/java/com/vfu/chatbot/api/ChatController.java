@@ -14,6 +14,7 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -28,7 +29,7 @@ public class ChatController {
 
     private final ChatClient chatClient;
     private final ConfidenceService confidenceService;
-    private final ChatAnalyticsService  chatAnalyticsService;
+    private final ChatAnalyticsService chatAnalyticsService;
     private final SessionService sessionService;
 
     public ChatController(ChatClient chatClient, ConfidenceService confidenceService, ChatAnalyticsService chatAnalyticsService, SessionService sessionService) {
@@ -51,22 +52,31 @@ public class ChatController {
         log.info("finalsessionId: {}", finalSessionId);
 
         Optional<SessionEntity> sessionOpt = sessionService.getActiveSession(finalSessionId);
-        Map<String, Object> sessionData = Map.of(
-                "sessionId", sessionId,
-                "sessionData", sessionOpt.orElse(null),  // null if empty
-                "isVerified", sessionOpt.map(SessionEntity::isVerified).orElse(false),
-                "reservationId", sessionOpt.map(SessionEntity::getReservationId).orElse(null),
-                "lastName", sessionOpt.map(SessionEntity::getLastName).orElse(null),
-                "unitId", sessionOpt.map(SessionEntity::getUnitId).orElse(null),
-                "latitude", sessionOpt.map(SessionEntity::getLatitude).orElse(null),
-                "longitude", sessionOpt.map(SessionEntity::getLongitude).orElse(null)
+        Map<String, Object> sessionData = new HashMap<>(Map.of("sessionId", sessionId));
+        sessionOpt.ifPresentOrElse(
+                sessionEntity -> {
+                    sessionData.put("isVerified", sessionEntity.isVerified());
+                    sessionData.put("reservationId", sessionEntity.getReservationId()!=null?sessionEntity.getReservationId():"");
+                    sessionData.put("lastName", sessionEntity.getLastName()!=null?sessionEntity.getLastName():"");
+                    sessionData.put("unitId", sessionEntity.getUnitId()!=null?sessionEntity.getUnitId():"");
+                    sessionData.put("latitude", sessionEntity.getLatitude()!=null?sessionEntity.getLatitude():"");
+                    sessionData.put("longitude", sessionEntity.getLongitude()!=null?sessionEntity.getLongitude():"");
+                },
+                () -> {
+                    sessionData.put("isVerified", false);
+                    sessionData.put("reservationId", "");
+                    sessionData.put("lastName", "");
+                    sessionData.put("unitId", "");
+                    sessionData.put("latitude", "");
+                    sessionData.put("longitude", "");
+                }
         );
 
+        log.info("sessionData being passed to chatClient: {}", sessionData.values());
 
         String rawResponse = chatClient.prompt().user(u -> u.text(chatRequest.message()))
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, finalSessionId))
-                .toolContext(Map.of("sessionId", sessionId,
-                        "sessionData", sessionData))
+                .toolContext(sessionData)
                 .call().content();
 
         // 2. PARSE CONFIDENCE & SOURCE (your exact format)
@@ -80,13 +90,12 @@ public class ChatController {
         log.info("Confidence in Controller from rule is {}, judge:{}", ruleConfidence, judgeConfidence);
         ChatResponse chatResponse;
 
-        chatAnalyticsService.logChat(sessionId, chatRequest.message(), answer, ruleConfidence >=0.8 ? ruleConfidence: judgeConfidence,
+        chatAnalyticsService.logChat(sessionId, chatRequest.message(), answer, ruleConfidence >= 0.8 ? ruleConfidence : judgeConfidence,
                 source);
 
-        if(source.equalsIgnoreCase("NONE") || source.equalsIgnoreCase("unknown")) {
+        if (source.equalsIgnoreCase("NONE") || source.equalsIgnoreCase("unknown")) {
             chatResponse = new ChatResponse(answer, ruleConfidence, "RULE_FALLBACK", sessionId);
-        }
-        else if (ruleConfidence >= 0.8) {
+        } else if (ruleConfidence >= 0.8) {
             // Tool-backed → Trust rules, deliver
             chatResponse = new ChatResponse(answer, ruleConfidence, source, sessionId);
         } else if (judgeConfidence >= 0.4) {
@@ -154,7 +163,7 @@ public class ChatController {
         }
         // 2. SAFETY NET: Perfect contextual responses
         if (rawResponse.contains("6-digit") && rawResponse.contains("last name")) {
-            confidence= 0.85;  // Perfect "ask for reservation" response
+            confidence = 0.85;  // Perfect "ask for reservation" response
         }
         return confidence;
     }

@@ -37,6 +37,20 @@ public class OpenAiConfig {
             → Call policy_rag_tool() if the query is about policy
             
             **CHAT HISTORY**: Contains successful reservation_info_tool, property_info_tool calls
+            **SESSION DATA (MANDATORY - CHECK THIS FIRST EVERY TIME):**
+            - isVerified: {isVerified}\s
+            - reservationId: {reservationId}
+            - lastName: {lastName}
+            - unitId: {unitId}
+            - latitude: {latitude}
+            - longitude: {longitude}
+            
+            **CRITICAL DECISION RULES (FOLLOW EXACTLY):**
+            IF isVerified = true AND reservationId is not empty →\s
+              → Answer from memory NO reservation_info_tool() → 0.92 RESERVATION
+            
+            IF isVerified = false OR reservationId = "" →\s
+              → "Please provide 6-digit confirmation ID + last name" → 0.85 GENERAL
             
             STRICT TOOL RULES:
             1. POLICY QUESTIONS → ALWAYS use policy_rag_tool(question)
