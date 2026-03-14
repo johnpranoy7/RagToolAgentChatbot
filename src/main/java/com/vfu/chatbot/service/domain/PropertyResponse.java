@@ -67,10 +67,10 @@ public class PropertyResponse {
     private String virtualTourUrl;
 
     @JsonProperty("latitude")
-    private String latitude;
+    private Double latitude;
 
     @JsonProperty("longitude")
-    private String longitude;
+    private Double longitude;
 
     @JsonProperty("comment")
     private String comment;

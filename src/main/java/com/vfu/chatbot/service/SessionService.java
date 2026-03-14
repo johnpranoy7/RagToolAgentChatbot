@@ -51,6 +51,28 @@ public class SessionService {
         log.info("Cached session: {} → unitId: {}", sessionId, unitId);
     }
 
+    @Transactional
+    public void updateSessionLocation(String sessionId, Double latitude, Double longitude) {
+        Optional<SessionEntity> optionalEntity = sessionRepository.findById(sessionId);
+
+        if (optionalEntity.isEmpty()) {
+            log.warn("Session not found for patch: {}", sessionId);
+            return;
+        }
+
+        SessionEntity session = optionalEntity.get();
+
+        session.setLatitude(latitude);
+        session.setLongitude(longitude);
+        session.setUpdatedAt(LocalDateTime.now());
+
+        sessionRepository.save(session);
+        log.info("Patched session {} → lat: {}, lon: {}",
+                sessionId, latitude, longitude);
+    }
+
+
+
     public Optional<SessionEntity> getActiveSession(String sessionId) {
         return sessionRepository.findActiveBySessionId(sessionId);
     }

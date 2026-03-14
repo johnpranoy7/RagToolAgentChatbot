@@ -2,8 +2,10 @@ package com.vfu.chatbot.ai;
 
 import com.vfu.chatbot.exception.AiToolException;
 import com.vfu.chatbot.model.SessionEntity;
+import com.vfu.chatbot.service.GeoapifyPlacesApiService;
 import com.vfu.chatbot.service.SessionService;
 import com.vfu.chatbot.service.StreamXService;
+import com.vfu.chatbot.service.domain.GeoapifyResponse;
 import com.vfu.chatbot.service.domain.PropertyResponse;
 import com.vfu.chatbot.service.domain.ReservationResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -26,11 +28,13 @@ public class ChatBotTools {
 
     private final StreamXService streamXService;
     private final SessionService sessionService;
+    private final GeoapifyPlacesApiService  geoapifyPlacesApiService;
     private final PgVectorStore vectorStore;
 
-    public ChatBotTools(StreamXService streamXService, SessionService sessionService, PgVectorStore vectorStore) {
+    public ChatBotTools(StreamXService streamXService, SessionService sessionService, GeoapifyPlacesApiService geoapifyPlacesApiService, PgVectorStore vectorStore) {
         this.streamXService = streamXService;
         this.sessionService = sessionService;
+        this.geoapifyPlacesApiService = geoapifyPlacesApiService;
         this.vectorStore = vectorStore;
     }
 
@@ -80,6 +84,7 @@ public class ChatBotTools {
             PropertyResponse propertyInfo;
             try {
                 propertyInfo = streamXService.getPropertyInfo(propertyId);
+                sessionService.updateSessionLocation(activeSession.get().getSessionId(), propertyInfo.getLatitude(), propertyInfo.getLongitude());
             } catch (Exception e) {
                 log.error("STREAMX API FAILED for propertyId='{}', sessionId='{}': {}",
                         propertyId, sessionId, e.getMessage(), e);
@@ -151,6 +156,73 @@ public class ChatBotTools {
                     sessionId, confirmationId, lastName, ex.getMessage(), ex);
             throw new AiToolException("Internal error processing reservation");
         }
+    }
+
+    @Tool(description = """
+    Finds nearby attractions, restaurants, grocery stores, and services within 10 miles
+    of the verified property using Geoapify Places API (OpenStreetMap data).
+    
+    REQUIRES property_info_tool() called first (provides lat/long).
+    Default: tourism.attraction,tourism.sights,heritage,leisure
+    Dynamic: "restaurants" → catering.*, "grocery" → commercial.supermarket
+    
+    Use for: "What's nearby?", "Restaurants?", "Grocery store?", "Things to do?"
+    """)
+    public GeoapifyResponse nearby_places_tool(
+            @ToolParam(description = "Optional: 'restaurants', 'grocery', 'shopping'. Default: attractions/parks")
+            String categoryHint,
+            ToolContext toolContext) throws AiToolException {
+
+        String sessionId = String.valueOf(toolContext.getContext().get("sessionId"));
+        try {
+            Optional<SessionEntity> activeSession = sessionService.getActiveSession(sessionId);
+
+            if (activeSession.isEmpty()) {
+                throw new AiToolException("Missing Session ID");
+            }
+
+            SessionEntity session = activeSession.get();
+
+            if(session.getLatitude()==null || session.getLongitude()==null) {
+                throw new AiToolException("Missing Latitude and Longitude for Property");
+            }
+
+            log.info("Nearby places search requested for sessionId:{}, property:{}, ({},{})",
+                    sessionId, session.getUnitId(), session.getLatitude(), session.getLongitude());
+
+            //TODO: Modify the categories after testing
+            String categories = resolveCategories(categoryHint);
+
+            // Geoapify API call (10 miles)
+            GeoapifyResponse nearbyPlaces = geoapifyPlacesApiService.findNearbyPlaces(
+                    categories,
+                    session.getLongitude(),
+                    session.getLatitude(),
+                    10000
+            );
+
+            log.info(nearbyPlaces.toString());
+            return nearbyPlaces;
+
+        } catch (Exception ex) {
+            log.error("UNEXPECTED ERROR in nearby_places_tool for sessionId:'{}': {}", sessionId, ex.getMessage(), ex);
+            throw new AiToolException("Internal error searching nearby places");
+        }
+    }
+
+    private String resolveCategories(String categoryHint) {
+        if (categoryHint == null) categoryHint = "";
+
+        return switch (categoryHint.toLowerCase()) {
+            case "restaurants", "restaurant", "food", "dining", "eat" ->
+                    "catering.restaurant,catering.fast_food,catering.cafe,catering.pub";
+            case "grocery", "supermarket", "groceries", "shopping" ->
+                    "commercial.supermarket,commercial.convenience";
+            case "pharmacy", "drugs", "medicine" ->
+                    "healthcare.pharmacy";
+            default ->
+                    "tourism.attraction,tourism.sights,heritage,leisure.park,leisure.picnic";  // Your spec defaults
+        };
     }
 
 

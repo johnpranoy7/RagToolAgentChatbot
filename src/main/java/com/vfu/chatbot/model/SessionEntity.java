@@ -33,6 +33,12 @@ public class SessionEntity {
     @Column(name = "unit_id", length = 50, nullable = false)
     private String unitId;  // ← KEY FIELD for property lookups
 
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
     @Column(name = "verified", nullable = false)
     private boolean verified;
 
