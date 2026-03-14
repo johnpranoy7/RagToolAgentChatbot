@@ -44,9 +44,9 @@ public class GeoapifyProperties {
     @JsonProperty("address_line2")
     private String addressLine2;
 
-//    @JsonProperty("categories")
-//    private List<String> categories;
-//
+    @JsonProperty("categories")
+    private List<String> categories;
+
 //    @JsonProperty("details")
 //    private List<String> details;
 
@@ -55,13 +55,13 @@ public class GeoapifyProperties {
 
 //    @JsonProperty("distance")
 //    private Double distance;
-
+//
 //    @JsonProperty("place_id")
 //    private String placeId;
 
-    @JsonProperty("artwork")
-    private Map<String, String> artwork;
-
+//    @JsonProperty("artwork")
+//    private Map<String, String> artwork;
+//
 //    @JsonProperty("datasource")
 //    private GeoapifyDatasource datasource;
 

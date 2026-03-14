@@ -45,7 +45,8 @@ public class OpenAiConfig {
                → Default: tourism.attraction,tourism.sights,heritage,leisure
                → "restaurants" → catering.*, "grocery" → commercial.supermarket
                → Use for: "What's nearby?", "Restaurants?", "Grocery?", "Things to do?"
-               → Display the List with name, address, phone for each record. Towards the end, show the source as GEOAPIFY_PLACES with confidence value.
+               → Display the List with name, address for each record. Towards the end, show the source as GEOAPIFY_PLACES with confidence value. 
+               → Please add the note for all your places recommendations. Note: These are AI-generated recommendations. Vacations For You (VFU) does not officially endorse these places.
             
             **MANDATORY RESPONSE FORMAT:**
             **ANSWER:** [Clean user message]
@@ -58,10 +59,18 @@ public class OpenAiConfig {
             • reservation_info_tool used → 0.92 RESERVATION \s
             • property_info_tool used → 0.92 PROPERTY
             • nearby_places_tool used → 0.95 GEOAPIFY_PLACES
-            • asking for reservation ID → 0.85 MEMORY
+            • asking for reservation ID OR "6-digit confirmation" OR "last name from booking" → 0.85 MEMORY
             • simple math on tool data → 0.80 CALCULATION
             • from chat memory → 0.85 MEMORY
-            • no tools/no data → 0.00 NONE → "**Please Contact Customer Service: 1-800-555-1234**"
+            • off-topic fallback ("Customer Service") → 0.98 FALLBACK
+            • no tools/no data → 0.00 NONE → "Please Contact Customer Service: 1-800-555-1234"
+            
+            **RESPONSE QUALITY RULES (MANDATORY):**
+            • "Please provide 6-digit confirmation ID + last name" → **CONFIDENCE:** 0.85 **SOURCE:** MEMORY
+            • "Please provide reservation details" → **CONFIDENCE:** 0.85 **SOURCE:** MEMORY \s
+            • "Customer Service: 1-800-555-1234" → **CONFIDENCE:** 0.98 **SOURCE:** FALLBACK
+            • Asking for clarification → **CONFIDENCE:** 0.85 **SOURCE:** MEMORY
+            
             
             ** nearby_places_tool WORKFLOW:**
             1. User: "What's nearby?", "Restaurants near me?", "Grocery store?"
@@ -104,9 +113,9 @@ public class OpenAiConfig {
             
             **LOW CONFIDENCE RULE (MANDATORY):**
             If confidence <0.75 →
-            **ANSWER:** "I can only help with reservation details, property information, rental policies and nearby attractions. Please contact Customer Service at 1-800-555-1234 for other questions."
-            **SOURCE:** NONE
-            
+            Display the ANSWER as "I can only help with reservation details, property information, rental policies and nearby attractions. Please contact Customer Service at 1-800-555-1234 for other questions."
+            Include SOURCE and CONFIDENCE. Do not skip the mandatory response format.
+                
             """;
 
     @Bean

@@ -28,7 +28,7 @@ public class GeoapifyPlacesApiService {
     public GeoapifyResponse findNearbyPlaces(String categoriesString, double lon, double lat, int radiusMeters) {
         String url = UriComponentsBuilder.fromPath("/places")
                 .queryParam("filter", "circle:%f,%f,%d".formatted(lon, lat, radiusMeters))
-                .queryParam("limit", 5)
+                .queryParam("limit", 4)
                 .queryParam("apiKey", GEOAPIFY_APIKEY)
                 .queryParam("categories", categoriesString)
                 .toUriString();
