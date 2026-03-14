@@ -3,7 +3,9 @@ package com.vfu.chatbot.api;
 import com.vfu.chatbot.analytics.ChatAnalyticsService;
 import com.vfu.chatbot.model.ChatRequest;
 import com.vfu.chatbot.model.ChatResponse;
+import com.vfu.chatbot.model.SessionEntity;
 import com.vfu.chatbot.service.ConfidenceService;
+import com.vfu.chatbot.service.SessionService;
 import io.github.resilience4j.ratelimiter.RequestNotPermitted;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -26,11 +29,13 @@ public class ChatController {
     private final ChatClient chatClient;
     private final ConfidenceService confidenceService;
     private final ChatAnalyticsService  chatAnalyticsService;
+    private final SessionService sessionService;
 
-    public ChatController(ChatClient chatClient, ConfidenceService confidenceService, ChatAnalyticsService chatAnalyticsService) {
+    public ChatController(ChatClient chatClient, ConfidenceService confidenceService, ChatAnalyticsService chatAnalyticsService, SessionService sessionService) {
         this.chatClient = chatClient;
         this.confidenceService = confidenceService;
         this.chatAnalyticsService = chatAnalyticsService;
+        this.sessionService = sessionService;
     }
 
     @PostMapping("/chat")
@@ -44,9 +49,24 @@ public class ChatController {
 
         String finalSessionId = sessionId;
         log.info("finalsessionId: {}", finalSessionId);
+
+        Optional<SessionEntity> sessionOpt = sessionService.getActiveSession(finalSessionId);
+        Map<String, Object> sessionData = Map.of(
+                "sessionId", sessionId,
+                "sessionData", sessionOpt.orElse(null),  // null if empty
+                "isVerified", sessionOpt.map(SessionEntity::isVerified).orElse(false),
+                "reservationId", sessionOpt.map(SessionEntity::getReservationId).orElse(null),
+                "lastName", sessionOpt.map(SessionEntity::getLastName).orElse(null),
+                "unitId", sessionOpt.map(SessionEntity::getUnitId).orElse(null),
+                "latitude", sessionOpt.map(SessionEntity::getLatitude).orElse(null),
+                "longitude", sessionOpt.map(SessionEntity::getLongitude).orElse(null)
+        );
+
+
         String rawResponse = chatClient.prompt().user(u -> u.text(chatRequest.message()))
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, finalSessionId))
-                .toolContext(Map.of("sessionId", sessionId))
+                .toolContext(Map.of("sessionId", sessionId,
+                        "sessionData", sessionData))
                 .call().content();
 
         // 2. PARSE CONFIDENCE & SOURCE (your exact format)

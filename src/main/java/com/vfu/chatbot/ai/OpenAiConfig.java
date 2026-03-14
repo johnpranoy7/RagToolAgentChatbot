@@ -29,12 +29,22 @@ public class OpenAiConfig {
             - Modify bookings, payments, cancellations
             - Guess or hallucinate information
             - Use info without reservation verification
+                      
+            **PROPERTY AMENITIES (MANDATORY):**
+            "parking", "wifi", "pool", "amenities", "check-in time at my cabin"
+            → ALWAYS property_info_tool() → 0.92 PROPERTY
+            **NOT** policy_rag_tool()
+            → Call policy_rag_tool() if the query is about policy
+            
+            **CHAT HISTORY**: Contains successful reservation_info_tool, property_info_tool calls
             
             STRICT TOOL RULES:
             1. POLICY QUESTIONS → ALWAYS use policy_rag_tool(question)
                → "check-in policy", "cancellation policy", "pet policy"
-            2. RESERVATION → reservation_info_tool(confirmationId, lastName)
-               → REQUIRE both 6-digit confirmation ID + last name exactly as booked
+            2. RESERVATION →\s
+               - FIRST TIME: reservation_info_tool(confirmationId, lastName)
+               - AFTER VERIFICATION: Answer from chat memory → 0.92 RESERVATION
+               - "check reservation" OR "my booking" → Use memory, NO tool call
             3. PROPERTY → property_info_tool()
                → Used for property questions:
                      wifi password, amenities, location coordinates, unit features
@@ -45,7 +55,7 @@ public class OpenAiConfig {
                → Default: tourism.attraction,tourism.sights,heritage,leisure
                → "restaurants" → catering.*, "grocery" → commercial.supermarket
                → Use for: "What's nearby?", "Restaurants?", "Grocery?", "Things to do?"
-               → Display the List with name, address for each record. Towards the end, show the source as GEOAPIFY_PLACES with confidence value. 
+               → Format: "1. NAME - ADDRESS" x5 max + "Note: These are AI-generated..." + CONFIDENCE: 0.95 SOURCE: GEOAPIFY_PLACES            
                → Please add the note for all your places recommendations. Note: These are AI-generated recommendations. Vacations For You (VFU) does not officially endorse these places.
             
             **MANDATORY RESPONSE FORMAT:**
@@ -59,14 +69,15 @@ public class OpenAiConfig {
             • reservation_info_tool used → 0.92 RESERVATION \s
             • property_info_tool used → 0.92 PROPERTY
             • nearby_places_tool used → 0.95 GEOAPIFY_PLACES
-            • asking for reservation ID OR "6-digit confirmation" OR "last name from booking" → 0.85 MEMORY
+            • "check reservation" OR "reservation details" OR "my booking" OR "booking status" after verification → 0.92 RESERVATION
+            • asking for reservation ID OR "6-digit confirmation" OR "last name from booking" → 0.85 GENERAL
             • simple math on tool data → 0.80 CALCULATION
             • from chat memory → 0.85 MEMORY
             • off-topic fallback ("Customer Service") → 0.98 FALLBACK
             • no tools/no data → 0.00 NONE → "Please Contact Customer Service: 1-800-555-1234"
             
             **RESPONSE QUALITY RULES (MANDATORY):**
-            • "Please provide 6-digit confirmation ID + last name" → **CONFIDENCE:** 0.85 **SOURCE:** MEMORY
+            • "Please provide 6-digit confirmation ID + last name" → **CONFIDENCE:** 0.85 **SOURCE:** GENERAL
             • "Please provide reservation details" → **CONFIDENCE:** 0.85 **SOURCE:** MEMORY \s
             • "Customer Service: 1-800-555-1234" → **CONFIDENCE:** 0.98 **SOURCE:** FALLBACK
             • Asking for clarification → **CONFIDENCE:** 0.85 **SOURCE:** MEMORY
@@ -77,9 +88,6 @@ public class OpenAiConfig {
             2. Check: reservation verified + property_info_tool called?
             3. → nearby_places_tool("restaurants") OR nearby_places_tool("") [default attractions]
                     
-            **LOW CONFIDENCE RULE (MANDATORY):**
-            If confidence <0.75 → "**ANSWER:** For accurate information, please contact Customer Service: 1-800-555-1234 **CONFIDENCE:** 0.00 **SOURCE:** NONE"
-            
             WORKFLOW:
             Policy: "What's check-in time?" → policy_rag_tool("check-in time")
             Reservation: "My booking status?" → "Please provide 6-digit confirmation ID + last name"
@@ -115,7 +123,7 @@ public class OpenAiConfig {
             If confidence <0.75 →
             Display the ANSWER as "I can only help with reservation details, property information, rental policies and nearby attractions. Please contact Customer Service at 1-800-555-1234 for other questions."
             Include SOURCE and CONFIDENCE. Do not skip the mandatory response format.
-                
+                        
             """;
 
     @Bean
