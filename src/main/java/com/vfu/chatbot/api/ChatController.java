@@ -11,6 +11,8 @@ import io.github.resilience4j.ratelimiter.RequestNotPermitted;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.micrometer.core.annotation.Timed;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.http.ResponseEntity;
@@ -61,33 +63,9 @@ public class ChatController {
         String finalSessionId = sessionId;
         log.info("finalsessionId: {}", finalSessionId);
 
-        Optional<SessionEntity> sessionOpt = sessionService.getActiveSession(finalSessionId);
-        Map<String, Object> sessionData = new HashMap<>(Map.of("sessionId", sessionId));
-        sessionOpt.ifPresentOrElse(
-                sessionEntity -> {
-                    sessionData.put("isVerified", sessionEntity.isVerified());
-                    sessionData.put("reservationId", sessionEntity.getReservationId() != null ? sessionEntity.getReservationId() : "");
-                    sessionData.put("lastName", sessionEntity.getLastName() != null ? sessionEntity.getLastName() : "");
-                    sessionData.put("unitId", sessionEntity.getUnitId() != null ? sessionEntity.getUnitId() : "");
-                    sessionData.put("latitude", sessionEntity.getLatitude() != null ? sessionEntity.getLatitude() : "");
-                    sessionData.put("longitude", sessionEntity.getLongitude() != null ? sessionEntity.getLongitude() : "");
-                },
-                () -> {
-                    sessionData.put("isVerified", false);
-                    sessionData.put("reservationId", "");
-                    sessionData.put("lastName", "");
-                    sessionData.put("unitId", "");
-                    sessionData.put("latitude", "");
-                    sessionData.put("longitude", "");
-                }
-        );
+        Map<String, Object> sessionData = getSessionDataForLLMContext(finalSessionId, sessionId);
 
-        log.info("sessionData being passed to chatClient: {}", sessionData.values());
-
-        String rawResponse = chatClient.prompt().user(u -> u.text(chatRequest.message()))
-                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, finalSessionId))
-                .toolContext(sessionData)
-                .call().content();
+        String rawResponse = callandGetResponseFromLLM(chatRequest, finalSessionId, sessionData);
 
         // 2. PARSE CONFIDENCE & SOURCE (your exact format)
         String answer = extractContent(rawResponse);
@@ -122,6 +100,39 @@ public class ChatController {
                 .header("X-Session-ID", sessionId)  // Always return
                 .body(chatResponse);
 
+    }
+
+    private @Nullable String callandGetResponseFromLLM(ChatRequest chatRequest, String finalSessionId, Map<String, Object> sessionData) {
+        return chatClient.prompt().user(u -> u.text(chatRequest.message()))
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, finalSessionId))
+                .toolContext(sessionData)
+                .call().content();
+    }
+
+    private @NonNull Map<String, Object> getSessionDataForLLMContext(String finalSessionId, String sessionId) {
+        Optional<SessionEntity> sessionOpt = sessionService.getActiveSession(finalSessionId);
+        Map<String, Object> sessionData = new HashMap<>(Map.of("sessionId", sessionId));
+        sessionOpt.ifPresentOrElse(
+                sessionEntity -> {
+                    sessionData.put("isVerified", sessionEntity.isVerified());
+                    sessionData.put("reservationId", sessionEntity.getReservationId() != null ? sessionEntity.getReservationId() : "");
+                    sessionData.put("lastName", sessionEntity.getLastName() != null ? sessionEntity.getLastName() : "");
+                    sessionData.put("unitId", sessionEntity.getUnitId() != null ? sessionEntity.getUnitId() : "");
+                    sessionData.put("latitude", sessionEntity.getLatitude() != null ? sessionEntity.getLatitude() : "");
+                    sessionData.put("longitude", sessionEntity.getLongitude() != null ? sessionEntity.getLongitude() : "");
+                },
+                () -> {
+                    sessionData.put("isVerified", false);
+                    sessionData.put("reservationId", "");
+                    sessionData.put("lastName", "");
+                    sessionData.put("unitId", "");
+                    sessionData.put("latitude", "");
+                    sessionData.put("longitude", "");
+                }
+        );
+
+        log.info("sessionData being passed to chatClient: {}", sessionData.values());
+        return sessionData;
     }
 
     @GetMapping("dashboard")
