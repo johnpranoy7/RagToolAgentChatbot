@@ -1,5 +1,6 @@
 package com.vfu.chatbot.service;
 
+import io.micrometer.core.annotation.Timed;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
@@ -10,10 +11,12 @@ public class ConfidenceService {
 
     private final ChatClient chatClient;
 
+
     public ConfidenceService(ChatClient.Builder builder) {
         this.chatClient = builder.build();
     }
 
+    @Timed(value = "chatbot.confidence.calculate", description = "LLM Judge confidence scoring")
     public double evaluateConfidence(String question, String answer) {
 
         String judgePrompt = """

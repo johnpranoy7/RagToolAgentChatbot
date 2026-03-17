@@ -4,10 +4,12 @@ import com.vfu.chatbot.analytics.ChatAnalyticsService;
 import com.vfu.chatbot.model.ChatRequest;
 import com.vfu.chatbot.model.ChatResponse;
 import com.vfu.chatbot.model.SessionEntity;
+import com.vfu.chatbot.monitoring.MetricCounters;
 import com.vfu.chatbot.service.ConfidenceService;
 import com.vfu.chatbot.service.SessionService;
 import io.github.resilience4j.ratelimiter.RequestNotPermitted;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.micrometer.core.annotation.Timed;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -31,16 +33,24 @@ public class ChatController {
     private final ConfidenceService confidenceService;
     private final ChatAnalyticsService chatAnalyticsService;
     private final SessionService sessionService;
+    private final MetricCounters metricCounters;
 
-    public ChatController(ChatClient chatClient, ConfidenceService confidenceService, ChatAnalyticsService chatAnalyticsService, SessionService sessionService) {
+    public ChatController(ChatClient chatClient, ConfidenceService confidenceService, ChatAnalyticsService chatAnalyticsService, SessionService sessionService, MetricCounters metricCounters) {
         this.chatClient = chatClient;
         this.confidenceService = confidenceService;
         this.chatAnalyticsService = chatAnalyticsService;
         this.sessionService = sessionService;
+        this.metricCounters = metricCounters;
     }
 
     @PostMapping("/chat")
     @RateLimiter(name = "rateLimitingApi", fallbackMethod = "chatRateLimited")
+    @Timed(
+            value = "chatbot.chat.endpoint",
+            description = "End-to-end /chat endpoint latency",
+            percentiles = {0.5, 0.95, 0.99},
+            histogram = true
+    )
     public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest chatRequest) {
         String sessionId = chatRequest.sessionId();
         log.info("sessionId: {}", sessionId);
@@ -56,11 +66,11 @@ public class ChatController {
         sessionOpt.ifPresentOrElse(
                 sessionEntity -> {
                     sessionData.put("isVerified", sessionEntity.isVerified());
-                    sessionData.put("reservationId", sessionEntity.getReservationId()!=null?sessionEntity.getReservationId():"");
-                    sessionData.put("lastName", sessionEntity.getLastName()!=null?sessionEntity.getLastName():"");
-                    sessionData.put("unitId", sessionEntity.getUnitId()!=null?sessionEntity.getUnitId():"");
-                    sessionData.put("latitude", sessionEntity.getLatitude()!=null?sessionEntity.getLatitude():"");
-                    sessionData.put("longitude", sessionEntity.getLongitude()!=null?sessionEntity.getLongitude():"");
+                    sessionData.put("reservationId", sessionEntity.getReservationId() != null ? sessionEntity.getReservationId() : "");
+                    sessionData.put("lastName", sessionEntity.getLastName() != null ? sessionEntity.getLastName() : "");
+                    sessionData.put("unitId", sessionEntity.getUnitId() != null ? sessionEntity.getUnitId() : "");
+                    sessionData.put("latitude", sessionEntity.getLatitude() != null ? sessionEntity.getLatitude() : "");
+                    sessionData.put("longitude", sessionEntity.getLongitude() != null ? sessionEntity.getLongitude() : "");
                 },
                 () -> {
                     sessionData.put("isVerified", false);
@@ -89,11 +99,12 @@ public class ChatController {
         log.info("message from rule LLM :{} and source:{}", answer, source);
         log.info("Confidence in Controller from rule is {}, judge:{}", ruleConfidence, judgeConfidence);
         ChatResponse chatResponse;
-
         chatAnalyticsService.logChat(sessionId, chatRequest.message(), answer, ruleConfidence >= 0.8 ? ruleConfidence : judgeConfidence,
                 source);
 
         if (source.equalsIgnoreCase("NONE") || source.equalsIgnoreCase("unknown")) {
+            metricCounters.incrementAgentEscalations(); //Still an Escalation
+            log.info("Rule fallBack response :{}", answer);
             chatResponse = new ChatResponse(answer, ruleConfidence, "RULE_FALLBACK", sessionId);
         } else if (ruleConfidence >= 0.8) {
             // Tool-backed → Trust rules, deliver
@@ -103,6 +114,7 @@ public class ChatController {
             chatResponse = new ChatResponse(answer, judgeConfidence, source, sessionId);
         } else {
             // Both low → Agent escalation
+            metricCounters.incrementAgentEscalations();
             return agentEscalation(sessionId);
         }
 
@@ -130,6 +142,7 @@ public class ChatController {
     }
 
     private ResponseEntity<ChatResponse> agentEscalation(String sessionId) {
+        log.info("agentEscalation for sessionId: {}", sessionId);
         return ResponseEntity.ok()
                 .body(new ChatResponse(
                         "I am not able to help here. Could you please connect with Customer Support Agent",

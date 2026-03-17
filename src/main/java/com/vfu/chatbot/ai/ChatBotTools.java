@@ -8,8 +8,8 @@ import com.vfu.chatbot.service.StreamXService;
 import com.vfu.chatbot.service.domain.GeoapifyResponse;
 import com.vfu.chatbot.service.domain.PropertyResponse;
 import com.vfu.chatbot.service.domain.ReservationResponse;
+import io.micrometer.core.annotation.Timed;
 import lombok.extern.slf4j.Slf4j;
-import org.hibernate.boot.jaxb.hbm.transform.PropertyInfo;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.tool.annotation.Tool;
@@ -28,7 +28,7 @@ public class ChatBotTools {
 
     private final StreamXService streamXService;
     private final SessionService sessionService;
-    private final GeoapifyPlacesApiService  geoapifyPlacesApiService;
+    private final GeoapifyPlacesApiService geoapifyPlacesApiService;
     private final PgVectorStore vectorStore;
 
     public ChatBotTools(StreamXService streamXService, SessionService sessionService, GeoapifyPlacesApiService geoapifyPlacesApiService, PgVectorStore vectorStore) {
@@ -38,6 +38,7 @@ public class ChatBotTools {
         this.vectorStore = vectorStore;
     }
 
+    @Timed(value = "chatbot.tool.policy_rag", description = "Vector policy search")
     @Tool(description = "Search hotel policies and rules by question")
     public String policy_rag_tool(
             @ToolParam(description = "Policy question to search") String userQuestion, ToolContext toolContext) {
@@ -56,6 +57,7 @@ public class ChatBotTools {
                 .collect(Collectors.joining("\n\n---\n\n"));
     }
 
+    @Timed(value = "chatbot.tool.property_info", description = "Property lookup")
     @Tool(description = """
             Returns property details for the user's verified reservation.
             
@@ -102,7 +104,7 @@ public class ChatBotTools {
         }
     }
 
-
+    @Timed(value = "chatbot.tool.reservation_info", description = "Reservation lookup")
     @Tool(description = """
             Verifies reservation ownership and returns details.
             REQUIRES BOTH confirmationId (6-digit) + lastName + sessionId for toolContext.
@@ -158,16 +160,17 @@ public class ChatBotTools {
         }
     }
 
+    @Timed(value = "chatbot.tool.nearby_places", description = "Geoapify places lookup")
     @Tool(description = """
-    Finds nearby attractions, restaurants, grocery stores, and services within 10 miles
-    of the verified property using Geoapify Places API (OpenStreetMap data).
-    
-    REQUIRES property_info_tool() called first (provides lat/long).
-    Default: tourism.attraction,tourism.sights,heritage,leisure
-    Dynamic: "restaurants" → catering.*, "grocery" → commercial.supermarket
-    
-    Use for: "What's nearby?", "Restaurants?", "Grocery store?", "Things to do?"
-    """)
+            Finds nearby attractions, restaurants, grocery stores, and services within 10 miles
+            of the verified property using Geoapify Places API (OpenStreetMap data).
+            
+            REQUIRES property_info_tool() called first (provides lat/long).
+            Default: tourism.attraction,tourism.sights,heritage,leisure
+            Dynamic: "restaurants" → catering.*, "grocery" → commercial.supermarket
+            
+            Use for: "What's nearby?", "Restaurants?", "Grocery store?", "Things to do?"
+            """)
     public GeoapifyResponse nearby_places_tool(
             @ToolParam(description = "Optional: 'restaurants', 'grocery', 'shopping'. Default: attractions/parks")
             String categoryHint,
@@ -183,7 +186,7 @@ public class ChatBotTools {
 
             SessionEntity session = activeSession.get();
 
-            if(session.getLatitude()==null || session.getLongitude()==null) {
+            if (session.getLatitude() == null || session.getLongitude() == null) {
                 throw new AiToolException("Missing Latitude and Longitude for Property");
             }
 
@@ -216,12 +219,9 @@ public class ChatBotTools {
         return switch (categoryHint.toLowerCase()) {
             case "restaurants", "restaurant", "food", "dining", "eat" ->
                     "catering.restaurant,catering.fast_food,catering.cafe,catering.pub";
-            case "grocery", "supermarket", "groceries", "shopping" ->
-                    "commercial.supermarket,commercial.convenience";
-            case "pharmacy", "drugs", "medicine" ->
-                    "healthcare.pharmacy";
-            default ->
-                    "tourism.attraction,tourism.sights,heritage,leisure.park,leisure.picnic";  // Your spec defaults
+            case "grocery", "supermarket", "groceries", "shopping" -> "commercial.supermarket,commercial.convenience";
+            case "pharmacy", "drugs", "medicine" -> "healthcare.pharmacy";
+            default -> "tourism.attraction,tourism.sights,heritage,leisure.park,leisure.picnic";  // Your spec defaults
         };
     }
 

@@ -4,6 +4,7 @@ package com.vfu.chatbot.service;
 import com.vfu.chatbot.model.SessionEntity;
 import com.vfu.chatbot.repository.SessionRepository;
 import com.vfu.chatbot.service.domain.ReservationResponse;
+import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,7 @@ public class SessionService {
         return newSessionId;
     }
 
+    @Timed(value = "chatbot.session.create", description = "Create new session and save")
     public void saveVerifiedReservation(
             String sessionId,
             String reservationId,
@@ -72,7 +74,7 @@ public class SessionService {
     }
 
 
-
+    @Timed(value = "chatbot.session.get_active", description = "Get active session")
     public Optional<SessionEntity> getActiveSession(String sessionId) {
         return sessionRepository.findActiveBySessionId(sessionId);
     }
