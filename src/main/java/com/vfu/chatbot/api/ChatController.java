@@ -104,6 +104,7 @@ public class ChatController {
 
     private @Nullable String callandGetResponseFromLLM(ChatRequest chatRequest, String finalSessionId, Map<String, Object> sessionData) {
         return chatClient.prompt().user(u -> u.text(chatRequest.message()))
+                .system( s -> s.params(sessionData))
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, finalSessionId))
                 .toolContext(sessionData)
                 .call().content();

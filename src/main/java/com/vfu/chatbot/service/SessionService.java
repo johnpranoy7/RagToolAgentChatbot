@@ -79,6 +79,24 @@ public class SessionService {
         return sessionRepository.findActiveBySessionId(sessionId);
     }
 
+    @Transactional
+    public void cachePropertyResponse(String sessionId, String propertyJson) {
+        sessionRepository.findById(sessionId).ifPresent(session -> {
+            session.setCachedPropertyResponse(propertyJson);
+            sessionRepository.save(session);
+            log.info("Cached property response for sessionId: {}", sessionId);
+        });
+    }
+
+    @Transactional
+    public void cacheReservationResponse(String sessionId, String reservationJson) {
+        sessionRepository.findById(sessionId).ifPresent(session -> {
+            session.setCachedReservationResponse(reservationJson);
+            sessionRepository.save(session);
+            log.info("Cached reservation response for sessionId: {}", sessionId);
+        });
+    }
+
     /**
      * Clear specific session
      */

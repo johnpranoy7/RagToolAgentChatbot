@@ -228,8 +228,8 @@ public class PropertyResponse {
     @JsonProperty("variable_trash_pick_up_days")
     private String variableTrashPickUpDays;
 
-    @JsonProperty("variable_number_of_vehicles")
-    private String variableNumberOfVehicles;
+    @JsonProperty("variable_parking_spaces")
+    private String variableParkingSpaces;
 
     @JsonProperty("night_gap_logic_enabled")
     private String nightGapLogicEnabled;

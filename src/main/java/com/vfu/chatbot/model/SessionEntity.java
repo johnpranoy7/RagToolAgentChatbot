@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
 public class SessionEntity {
 
     @Id
-    @Column(name = "session_id", length = 255)
+    @Column(name = "session_id")
     private String sessionId;
 
     @Column(name = "reservation_id", length = 50, nullable = false)
@@ -31,7 +31,7 @@ public class SessionEntity {
     private String lastName;
 
     @Column(name = "unit_id", length = 50, nullable = false)
-    private String unitId;  // ← KEY FIELD for property lookups
+    private String unitId;
 
     @Column(name = "latitude")
     private Double latitude;
@@ -52,4 +52,16 @@ public class SessionEntity {
 
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
+
+    @Column(name = "cached_property_response", columnDefinition = "TEXT")
+    private String cachedPropertyResponse;
+
+    @Column(name = "cached_reservation_response", columnDefinition = "TEXT")
+    private String cachedReservationResponse;
+
+    @PrePersist
+    @PreUpdate
+    public void updateExpiry() {
+        this.expiresAt = LocalDateTime.now().plusHours(1);
+    }
 }

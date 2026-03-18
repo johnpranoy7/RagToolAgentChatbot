@@ -1,5 +1,7 @@
 package com.vfu.chatbot.ai;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vfu.chatbot.StreamXOrchestrator;
 import com.vfu.chatbot.exception.AiToolException;
 import com.vfu.chatbot.model.SessionEntity;
 import com.vfu.chatbot.service.GeoapifyPlacesApiService;
@@ -26,16 +28,16 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ChatBotTools {
 
-    private final StreamXService streamXService;
     private final SessionService sessionService;
     private final GeoapifyPlacesApiService geoapifyPlacesApiService;
     private final PgVectorStore vectorStore;
+    private final StreamXOrchestrator streamXOrchestrator;
 
-    public ChatBotTools(StreamXService streamXService, SessionService sessionService, GeoapifyPlacesApiService geoapifyPlacesApiService, PgVectorStore vectorStore) {
-        this.streamXService = streamXService;
+    public ChatBotTools(StreamXService streamXService, SessionService sessionService, GeoapifyPlacesApiService geoapifyPlacesApiService, PgVectorStore vectorStore, ObjectMapper objectMapper, StreamXOrchestrator streamXOrchestrator) {
         this.sessionService = sessionService;
         this.geoapifyPlacesApiService = geoapifyPlacesApiService;
         this.vectorStore = vectorStore;
+        this.streamXOrchestrator = streamXOrchestrator;
     }
 
     @Timed(value = "chatbot.tool.policy_rag", description = "Vector policy search")
@@ -60,11 +62,8 @@ public class ChatBotTools {
     @Timed(value = "chatbot.tool.property_info", description = "Property lookup")
     @Tool(description = """
             Returns property details for the user's verified reservation.
-            
-            This tool does NOT accept propertyId from the user.
             The propertyId is automatically retrieved from the verified session.
-            
-            Use ONLY after reservation_info_tool succeeds.
+            Results are cached — safe to call multiple times for different property questions.
             """)
     public PropertyResponse property_info_tool(ToolContext toolContext)
             throws AiToolException {
@@ -74,29 +73,14 @@ public class ChatBotTools {
             Optional<SessionEntity> activeSession = sessionService.getActiveSession(sessionId);
 
             if (activeSession.isEmpty()) {
-                throw new AiToolException("Missing Session ID");
+                throw new AiToolException("Property lookup requires a verified reservation. Please verify your reservation first.");
             }
             String propertyId = activeSession.get().getUnitId();
 
             log.info("Property Tool search requested for sessionId:{}, propertyId:{}", activeSession.get(), propertyId);
 
-            if (!propertyId.matches("\\d+")) {
-                throw new AiToolException("Invalid propertyId. Must be numeric ID from reservation.");
-            }
-            PropertyResponse propertyInfo;
-            try {
-                propertyInfo = streamXService.getPropertyInfo(propertyId);
-                sessionService.updateSessionLocation(activeSession.get().getSessionId(), propertyInfo.getLatitude(), propertyInfo.getLongitude());
-            } catch (Exception e) {
-                log.error("STREAMX API FAILED for propertyId='{}', sessionId='{}': {}",
-                        propertyId, sessionId, e.getMessage(), e);
-                throw new AiToolException("Error Fetching Property Data: " + e.getMessage());
-            }
+            return streamXOrchestrator.getPropertyResponse(activeSession.get(), sessionId);
 
-            if (propertyInfo == null) {
-                throw new AiToolException("Property not found");
-            }
-            return propertyInfo;
         } catch (Exception ex) {
             log.error("UNEXPECTED ERROR in property_info_tool for sessionId:'{}' : {}",
                     sessionId, ex.getMessage(), ex);
@@ -104,11 +88,12 @@ public class ChatBotTools {
         }
     }
 
+
     @Timed(value = "chatbot.tool.reservation_info", description = "Reservation lookup")
     @Tool(description = """
             Verifies reservation ownership and returns details.
-            REQUIRES BOTH confirmationId (6-digit) + lastName + sessionId for toolContext.
-            Returns JSON with propertyId needed for property_info_tool.
+            Requires confirmationId (6-digit) and lastName exactly as on booking.
+            Results are cached — returns instantly if already verified.
             """)
     public ReservationResponse reservation_info_tool(
             @ToolParam(description = "6-digit confirmation ID") String confirmationId,
@@ -116,63 +101,32 @@ public class ChatBotTools {
             throws AiToolException {
 
         String sessionId = String.valueOf(toolContext.getContext().get("sessionId"));
-        try {
-            // Input validation
-            if (!confirmationId.matches("\\d{6}")) {
-                throw new AiToolException("Reservation ID must be 6 digits");
-            }
 
-            log.info("Verifying reservation: {} - {}", confirmationId, lastName);
-            log.info("Reservation Tool search requested for sessionId:{}, confirmationId:{}, lastName:{}",
-                    sessionId, confirmationId, lastName);
-
-            ReservationResponse reservationInfo;
-            try {
-                reservationInfo = streamXService.getReservationInfo(confirmationId);
-            } catch (Exception e) {
-                log.error("STREAMX API FAILED for confirmationId='{}', sessionId='{}': {}",
-                        confirmationId, sessionId, e.getMessage(), e);
-                throw new AiToolException("Error Fetching Reservation Data: " + e.getMessage());
-            }
-
-            if (reservationInfo == null) {
-                log.error("RESERVATION NULL RESPONSE from streamXService for confirmationId='{}', sessionId='{}'", confirmationId, sessionId);
-                throw new AiToolException("Reservation not found");
-            }
-
-            // Null-safe case-insensitive comparison
-            String resLastName = reservationInfo.getLastName();
-            String resId = reservationInfo.getConfirmationId();
-            if ((resId == null || !resId.equalsIgnoreCase(confirmationId)) ||
-                    (lastName == null || !lastName.equalsIgnoreCase(resLastName))) {
-                sessionService.clearSession(sessionId);
-                throw new AiToolException("Reservation ID and last name don't match");
-            }
-
-            sessionService.saveVerifiedReservation(sessionId, confirmationId, lastName, reservationInfo.getUnitId());
-
-            log.info("Reservation verified successfully. PropertyId: {}", reservationInfo.getUnitId());
-            return reservationInfo;
-        } catch (Exception ex) {
-            log.error("UNEXPECTED ERROR in reservation_info_tool - sessionId:'{}', confirmationId:'{}', lastName:'{}': {}",
-                    sessionId, confirmationId, lastName, ex.getMessage(), ex);
-            throw new AiToolException("Internal error processing reservation");
+        if (!confirmationId.matches("\\d{6}")) {
+            throw new AiToolException("Reservation ID must be 6 digits");
         }
+
+        log.info("Reservation tool called for sessionId:{}, confirmationId:{}, lastName:{}",
+                sessionId, confirmationId, lastName);
+
+        return streamXOrchestrator.getReservationResponse(sessionId, confirmationId, lastName);
     }
 
     @Timed(value = "chatbot.tool.nearby_places", description = "Geoapify places lookup")
     @Tool(description = """
-            Finds nearby attractions, restaurants, grocery stores, and services within 10 miles
-            of the verified property using Geoapify Places API (OpenStreetMap data).
+            Finds nearby attractions, restaurants, grocery stores and services
+                    within 10 miles of the verified property using Geoapify Places API.
             
-            REQUIRES property_info_tool() called first (provides lat/long).
-            Default: tourism.attraction,tourism.sights,heritage,leisure
-            Dynamic: "restaurants" → catering.*, "grocery" → commercial.supermarket
+                    Requires property_info_tool() called first (provides lat/long).
+                    Default: tourism.attraction,tourism.sights,heritage,leisure.park,leisure.picnic
+                    "restaurants" → catering.restaurant,catering.fast_food,catering.cafe,catering.pub
+                    "grocery"     → commercial.supermarket,commercial.convenience
+                    "pharmacy"    → healthcare.pharmacy
             
-            Use for: "What's nearby?", "Restaurants?", "Grocery store?", "Things to do?"
+                    Use for: "What's nearby?", "Restaurants?", "Grocery store?", "Things to do?"
             """)
     public GeoapifyResponse nearby_places_tool(
-            @ToolParam(description = "Optional: 'restaurants', 'grocery', 'shopping'. Default: attractions/parks")
+            @ToolParam(description = "Category hint: 'restaurants', 'grocery', 'pharmacy'. Leave empty for default attractions.")
             String categoryHint,
             ToolContext toolContext) throws AiToolException {
 
@@ -193,7 +147,6 @@ public class ChatBotTools {
             log.info("Nearby places search requested for sessionId:{}, property:{}, ({},{})",
                     sessionId, session.getUnitId(), session.getLatitude(), session.getLongitude());
 
-            //TODO: Modify the categories after testing
             String categories = resolveCategories(categoryHint);
 
             // Geoapify API call (10 miles)
