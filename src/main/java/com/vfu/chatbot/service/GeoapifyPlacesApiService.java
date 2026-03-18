@@ -1,5 +1,6 @@
 package com.vfu.chatbot.service;
 
+import com.newrelic.api.agent.Trace;
 import com.vfu.chatbot.service.domain.GeoapifyResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,6 +26,7 @@ public class GeoapifyPlacesApiService {
                 .build();
     }
 
+    @Trace
     public GeoapifyResponse findNearbyPlaces(String categoriesString, double lon, double lat, int radiusMeters) {
         String url = UriComponentsBuilder.fromPath("/places")
                 .queryParam("filter", "circle:%f,%f,%d".formatted(lon, lat, radiusMeters))

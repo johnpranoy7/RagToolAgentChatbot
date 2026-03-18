@@ -1,5 +1,6 @@
 package com.vfu.chatbot.service;
 
+import com.newrelic.api.agent.Trace;
 import io.micrometer.core.annotation.Timed;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -16,6 +17,7 @@ public class ConfidenceService {
         this.chatClient = builder.build();
     }
 
+    @Trace
     @Timed(value = "chatbot.confidence.calculate", description = "LLM Judge confidence scoring")
     public double evaluateConfidence(String question, String answer) {
 
@@ -43,7 +45,7 @@ public class ConfidenceService {
         }
     }
 
-
+    @Trace
     public double calculateConfidence(String question,
                                       String answer,
                                       String source, double llmConfidence) {

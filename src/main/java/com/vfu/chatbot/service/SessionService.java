@@ -1,6 +1,7 @@
 package com.vfu.chatbot.service;
 
 
+import com.newrelic.api.agent.Trace;
 import com.vfu.chatbot.model.SessionEntity;
 import com.vfu.chatbot.repository.SessionRepository;
 import com.vfu.chatbot.service.domain.ReservationResponse;
@@ -73,7 +74,7 @@ public class SessionService {
                 sessionId, latitude, longitude);
     }
 
-
+    @Trace
     @Timed(value = "chatbot.session.get_active", description = "Get active session")
     public Optional<SessionEntity> getActiveSession(String sessionId) {
         return sessionRepository.findActiveBySessionId(sessionId);

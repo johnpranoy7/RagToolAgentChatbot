@@ -1,5 +1,6 @@
 package com.vfu.chatbot.api;
 
+import com.newrelic.api.agent.Trace;
 import com.vfu.chatbot.analytics.ChatAnalyticsService;
 import com.vfu.chatbot.model.ChatRequest;
 import com.vfu.chatbot.model.ChatResponse;
@@ -53,6 +54,7 @@ public class ChatController {
             percentiles = {0.5, 0.95, 0.99},
             histogram = true
     )
+    @Trace
     public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest chatRequest) {
         String sessionId = chatRequest.sessionId();
         log.info("sessionId: {}", sessionId);
@@ -102,6 +104,7 @@ public class ChatController {
 
     }
 
+    @Trace
     private @Nullable String callandGetResponseFromLLM(ChatRequest chatRequest, String finalSessionId, Map<String, Object> sessionData) {
         return chatClient.prompt().user(u -> u.text(chatRequest.message()))
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, finalSessionId))
@@ -109,6 +112,7 @@ public class ChatController {
                 .call().content();
     }
 
+    @Trace
     private @NonNull Map<String, Object> getSessionDataForLLMContext(String finalSessionId, String sessionId) {
         Optional<SessionEntity> sessionOpt = sessionService.getActiveSession(finalSessionId);
         Map<String, Object> sessionData = new HashMap<>(Map.of("sessionId", sessionId));
@@ -163,7 +167,7 @@ public class ChatController {
                 ));
     }
 
-
+    @Trace
     private String extractContent(String rawResponse) {
         // Everything before **CONFIDENCE:**
         String[] parts = rawResponse.split("\\*\\*CONFIDENCE:", 2);
@@ -173,6 +177,7 @@ public class ChatController {
         return rawResponse;
     }
 
+    @Trace
     private double extractConfidence(String rawResponse) {
         Pattern pattern = Pattern.compile("(?i)\\*\\*CONFIDENCE:\\*\\*\\s([0-9]\\.[0-9]{2})");
         Matcher matcher = pattern.matcher(rawResponse);
@@ -192,6 +197,7 @@ public class ChatController {
         return confidence;
     }
 
+    @Trace
     private String extractSource(String rawResponse) {
         Pattern pattern = Pattern.compile("(?i)\\*\\*SOURCE:\\*\\*([^\\n]+)");
         Matcher matcher = pattern.matcher(rawResponse);

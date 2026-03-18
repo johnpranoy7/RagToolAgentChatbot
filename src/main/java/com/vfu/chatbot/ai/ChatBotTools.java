@@ -1,5 +1,6 @@
 package com.vfu.chatbot.ai;
 
+import com.newrelic.api.agent.Trace;
 import com.vfu.chatbot.exception.AiToolException;
 import com.vfu.chatbot.model.SessionEntity;
 import com.vfu.chatbot.service.GeoapifyPlacesApiService;
@@ -38,6 +39,7 @@ public class ChatBotTools {
         this.vectorStore = vectorStore;
     }
 
+    @Trace
     @Timed(value = "chatbot.tool.policy_rag", description = "Vector policy search")
     @Tool(description = "Search hotel policies and rules by question")
     public String policy_rag_tool(
@@ -57,6 +59,7 @@ public class ChatBotTools {
                 .collect(Collectors.joining("\n\n---\n\n"));
     }
 
+    @Trace
     @Timed(value = "chatbot.tool.property_info", description = "Property lookup")
     @Tool(description = """
             Returns property details for the user's verified reservation.
@@ -104,6 +107,7 @@ public class ChatBotTools {
         }
     }
 
+    @Trace
     @Timed(value = "chatbot.tool.reservation_info", description = "Reservation lookup")
     @Tool(description = """
             Verifies reservation ownership and returns details.
@@ -160,6 +164,7 @@ public class ChatBotTools {
         }
     }
 
+    @Trace
     @Timed(value = "chatbot.tool.nearby_places", description = "Geoapify places lookup")
     @Tool(description = """
             Finds nearby attractions, restaurants, grocery stores, and services within 10 miles

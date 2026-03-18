@@ -1,5 +1,6 @@
 package com.vfu.chatbot.service;
 
+import com.newrelic.api.agent.Trace;
 import com.vfu.chatbot.exception.AiToolException;
 import com.vfu.chatbot.service.domain.*;
 import lombok.SneakyThrows;
@@ -34,6 +35,7 @@ public class StreamXService {
                 .build();
     }
 
+    @Trace
     public ReservationResponse getReservationInfo(String reservationId) {
         try {
             HashMap<String, String> paramsMap = new HashMap<>();
@@ -79,6 +81,7 @@ public class StreamXService {
                 .body(String.class);
     }
 
+    @Trace
     @SneakyThrows
     private StreamxResponse createAndCallStreamXEndpoint(String methodName, Map<String, String> params) throws
             AiToolException {
@@ -137,6 +140,7 @@ public class StreamXService {
         }
     }
 
+    @Trace
     public PropertyResponse getPropertyInfo(String propertyId) {
         try {
             HashMap<String, String> paramsMap = new HashMap<>();

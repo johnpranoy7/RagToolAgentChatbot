@@ -1,5 +1,6 @@
 package com.vfu.chatbot.analytics;
 
+import com.newrelic.api.agent.Trace;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +17,7 @@ public class ChatAnalyticsService {
 
     private final ChatAnalyticsRepository repository;
 
+    @Trace
     public ChatAnalytics logChat(String sessionId, String userMessage, String botResponse,
                                  Double confidenceScore, String source) {
         ChatAnalytics analytics = ChatAnalytics.builder()
