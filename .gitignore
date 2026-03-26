@@ -33,7 +33,7 @@ build/
 .vscode/
 
 ### Secrets ###
-/src/main/resources/application-dev.yml
+.env
 
 ### NewRelic ###
 newrelic/
