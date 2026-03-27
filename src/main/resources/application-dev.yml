@@ -1,9 +1,12 @@
 spring:
   datasource:
-    url: ${DATABASE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/vfu_chatbot}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:toor}
     driver-class-name: org.postgresql.Driver
+
+  config:
+    import: optional:file:${user.dir}/.env[.properties]
 
   jackson:
     date-format: "MM/dd/yyyy"
@@ -53,12 +56,12 @@ management:
 
 resilience4j.ratelimiter:
   instances:
-    rateLimitingApi:
-      limit-for-period: 30        # 30 requests
-      limit-refresh-period: 1m    # per minute
-      timeout-duration: 500ms     # wait max 500ms
-      register-health-indicator: true
-      event-consumer-buffer-size: 100
+      rateLimitingApi:
+        limit-for-period: 30        # 30 requests
+        limit-refresh-period: 1m    # per minute
+        timeout-duration: 500ms     # wait max 500ms
+        register-health-indicator: true
+        event-consumer-buffer-size: 100
   metrics:
     enabled: true
 
