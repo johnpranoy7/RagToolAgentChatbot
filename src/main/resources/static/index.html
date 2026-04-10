@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0077B6">
+    <meta name="theme-color" content="#154e6b">
     <title>Vacations for YOU — Support</title>
     <link rel="icon" type="image/png" href="images/vacations-for-you-icon-background-e1705507231850-300x109.png">
     <link rel="apple-touch-icon" href="images/vacations-for-you-icon-background-e1705507231850-300x109.png">
@@ -18,21 +18,37 @@
         }
 
         :root {
-            --ocean: #0077B6;
-            --ocean-deep: #023E8A;
-            --ocean-light: #90E0EF;
-            --ocean-pale: #CAF0F8;
-            --sand: #FEFAE0;
-            --sand-warm: #F4E1C1;
-            --coral: #FF6B6B;
-            --white: #FFFFFF;
-            --ink: #0D1B2A;
-            --ink-muted: #4A5568;
-            --ink-faint: #8FA0B0;
-            --surface: #F7FBFE;
-            --border: #DDEEF8;
-            --shadow: 0 4px 24px rgba(0, 119, 182, 0.12);
-            --shadow-lg: 0 12px 48px rgba(0, 119, 182, 0.18);
+            /* Vacations for YOU — Astra theme palette (from site inspect) */
+            --ast-global-color-0: #e77840;
+            --ast-global-color-1: #c06436;
+            --ast-global-color-2: #154e6b;
+            --ast-global-color-3: #52505e;
+            --ast-global-color-4: #f7f6fe;
+            --ast-global-color-5: #FFFFFF;
+            --ast-global-color-6: rgba(255, 255, 255, 0.8);
+            --ast-global-color-7: #888698;
+            --ast-global-color-8: #f7f6fe;
+
+            --ocean: var(--ast-global-color-2);
+            --ocean-deep: #0e3a50;
+            --ocean-light: #2a6d8f;
+            --ocean-pale: #ebe9f5;
+            --accent: var(--ast-global-color-0);
+            --accent-deep: var(--ast-global-color-1);
+            --accent-soft: #fdeee8;
+            --rgb-ocean: 21, 78, 107;
+            --rgb-accent: 231, 120, 64;
+            --sand: var(--ast-global-color-8);
+            --sand-warm: #fdf0eb;
+            --coral: var(--accent);
+            --white: var(--ast-global-color-5);
+            --ink: var(--ast-global-color-3);
+            --ink-muted: var(--ast-global-color-3);
+            --ink-faint: var(--ast-global-color-7);
+            --surface: var(--ast-global-color-4);
+            --border: #e0deea;
+            --shadow: 0 4px 24px rgba(var(--rgb-ocean), 0.1);
+            --shadow-lg: 0 12px 48px rgba(var(--rgb-ocean), 0.14);
             --radius: 20px;
             --radius-sm: 12px;
             --radius-msg: 18px;
@@ -51,8 +67,8 @@
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0, 119, 182, 0.08) 0%, transparent 70%),
-            radial-gradient(ellipse 60% 40% at 100% 100%, rgba(144, 224, 239, 0.12) 0%, transparent 60%),
+            background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(var(--rgb-ocean), 0.07) 0%, transparent 70%),
+            radial-gradient(ellipse 60% 40% at 100% 100%, rgba(var(--rgb-accent), 0.08) 0%, transparent 60%),
             var(--surface);
         }
 
@@ -108,7 +124,7 @@
             left: 30%;
             width: 60px;
             height: 60px;
-            background: rgba(144, 224, 239, 0.1);
+            background: rgba(var(--rgb-accent), 0.12);
             border-radius: 50%;
         }
 
@@ -136,7 +152,7 @@
 
         .header-status {
             font-size: 12px;
-            color: rgba(255, 255, 255, 0.8);
+            color: var(--ast-global-color-6);
             margin-top: 0;
             display: flex;
             align-items: center;
@@ -208,7 +224,7 @@
         }
 
         .welcome-banner {
-            background: linear-gradient(135deg, #EBF8FF 0%, #F0FBFE 100%);
+            background: linear-gradient(135deg, var(--ocean-pale) 0%, var(--accent-soft) 100%);
             border: 1px solid var(--border);
             border-radius: var(--radius-sm);
             padding: 16px 18px;
@@ -225,7 +241,7 @@
             font-family: 'Sora', sans-serif;
             font-size: 14px;
             font-weight: 700;
-            color: var(--ocean-deep);
+            color: var(--ast-global-color-2);
             margin-bottom: 6px;
         }
 
@@ -296,15 +312,15 @@
         }
 
         .msg-group.bot .msg-bubble {
-            background: var(--white);
+            background: var(--accent-soft);
             color: var(--ink);
-            border: 1px solid var(--border);
+            border: 1px solid rgba(var(--rgb-accent), 0.2);
             border-bottom-left-radius: 5px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            box-shadow: 0 2px 10px rgba(var(--rgb-accent), 0.07);
         }
 
         .msg-group.user .msg-bubble {
-            background: linear-gradient(135deg, var(--ocean) 0%, var(--ocean-deep) 100%);
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
             color: #fff;
             border-bottom-right-radius: 5px;
         }
@@ -322,8 +338,8 @@
 
         .intent-tag {
             display: inline-block;
-            background: var(--ocean-pale);
-            color: var(--ocean-deep);
+            background: var(--accent-soft);
+            color: var(--accent-deep);
             font-size: 10px;
             font-weight: 600;
             padding: 2px 7px;
@@ -341,14 +357,15 @@
         }
 
         .typing-bubble {
-            background: var(--white);
-            border: 1px solid var(--border);
+            background: var(--accent-soft);
+            border: 1px solid rgba(var(--rgb-accent), 0.2);
             border-radius: var(--radius-msg);
             border-bottom-left-radius: 5px;
             padding: 12px 16px;
             display: flex;
             gap: 4px;
             align-items: center;
+            box-shadow: 0 2px 10px rgba(var(--rgb-accent), 0.06);
         }
 
         .typing-dot {
@@ -381,7 +398,7 @@
         .quick-replies {
             flex-shrink: 0;
             border-top: 1px solid var(--border);
-            background: #FAFCFF;
+            background: var(--surface);
         }
 
         .quick-toggle {
@@ -401,7 +418,7 @@
         }
 
         .quick-toggle:hover {
-            background: rgba(0, 119, 182, 0.06);
+            background: rgba(var(--rgb-ocean), 0.06);
         }
 
         .quick-toggle-label {
@@ -461,11 +478,11 @@
         }
 
         .quick-btn:hover {
-            background: var(--ocean);
+            background: var(--accent);
             color: #fff;
-            border-color: var(--ocean);
+            border-color: var(--accent-deep);
             transform: translateY(-1px);
-            box-shadow: 0 3px 10px rgba(0, 119, 182, 0.2);
+            box-shadow: 0 3px 10px rgba(var(--rgb-accent), 0.28);
         }
 
         .quick-btn:active {
@@ -501,8 +518,8 @@
         }
 
         .input-field:focus {
-            border-color: var(--ocean);
-            box-shadow: 0 0 0 3px rgba(0, 119, 182, 0.1);
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(var(--rgb-accent), 0.18);
             background: var(--white);
         }
 
@@ -510,7 +527,7 @@
             width: 44px;
             height: 44px;
             border-radius: 50%;
-            background: linear-gradient(135deg, var(--ocean) 0%, var(--ocean-deep) 100%);
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
             border: none;
             color: #fff;
             font-size: 17px;
@@ -520,7 +537,7 @@
             justify-content: center;
             flex-shrink: 0;
             transition: transform 0.18s, box-shadow 0.18s;
-            box-shadow: 0 3px 12px rgba(0, 119, 182, 0.3);
+            box-shadow: 0 3px 12px rgba(var(--rgb-accent), 0.35);
         }
 
         .send-btn svg {
@@ -530,7 +547,7 @@
 
         .send-btn:hover {
             transform: scale(1.08);
-            box-shadow: 0 5px 18px rgba(0, 119, 182, 0.4);
+            box-shadow: 0 5px 18px rgba(var(--rgb-accent), 0.45);
         }
 
         .send-btn:active {
@@ -570,7 +587,7 @@
         }
 
         .footer-brand-link:hover {
-            color: var(--ocean);
+            color: var(--accent-deep);
         }
 
         .footer-logo {
@@ -733,7 +750,7 @@
     // MARKDOWN RENDERING (Your backend format)
     function renderMarkdown(text) {
         return text
-            .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#1a73e8;font-weight:600">$1</strong>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#154e6b;font-weight:600">$1</strong>')
             .replace(/`([^`]+)`/g, '<code style="background:#f0f3f5;padding:2px 6px;border-radius:4px">$1</code>')
             .replace(/\\n/g, '<br>')
             .replace(/\\n\\n/g, '<br><br>');
