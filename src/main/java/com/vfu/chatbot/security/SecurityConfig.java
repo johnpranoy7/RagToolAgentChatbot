@@ -23,7 +23,9 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource())) // ✅ No CSRF 403s
                 .authorizeHttpRequests(auth -> auth
                         // Files in src/main/resources/static/ are served at / (e.g. /images/...), not under /static/...
-                        .requestMatchers("/", "/index.html", "/images/**", "/static/**", "/actuator/**", "/api/**").permitAll()
+                        // Static folder is served at / (not /static/...); e.g. /styles.css, /index.html
+                        .requestMatchers("/", "/index.html", "/*.css", "/images/**", "/static/**", "/actuator/**",
+                                "/api/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .build();
