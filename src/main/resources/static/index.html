@@ -8,7 +8,9 @@
     <link rel="icon" type="image/png" href="images/vacations-for-you-icon-background-e1705507231850-300x109.png">
     <link rel="apple-touch-icon" href="images/vacations-for-you-icon-background-e1705507231850-300x109.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500&display=swap"
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Roboto body; Poppins header title (client site) -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=Poppins:wght@500&display=swap"
           rel="stylesheet">
     <style>
         *, *::before, *::after {
@@ -52,11 +54,14 @@
             --radius: 20px;
             --radius-sm: 12px;
             --radius-msg: 18px;
+            --font-body: 'Roboto', sans-serif;
+            --font-heading: 'Roboto', sans-serif;
+            --font-header-title: 'Poppins', sans-serif;
         }
 
         html, body {
             height: 100%;
-            font-family: 'DM Sans', sans-serif;
+            font-family: var(--font-body);
             background: var(--surface);
             color: var(--ink);
             overflow: hidden;
@@ -97,7 +102,7 @@
 
         .chat-header {
             background: linear-gradient(135deg, var(--ocean) 0%, var(--ocean-deep) 100%);
-            padding: 20px 24px 18px;
+            padding: 16px 24px 22px;
             display: flex;
             align-items: center;
             gap: 14px;
@@ -150,6 +155,18 @@
             min-width: 0;
         }
 
+        .header-name {
+            font-family: var(--font-header-title);
+            font-size: 20px;
+            font-style: normal;
+            font-weight: 500;
+            color: var(--white);
+            line-height: 1.25;
+            letter-spacing: 0.01em;
+            margin-bottom: 6px;
+            transform: translateY(-2px);
+        }
+
         .header-status {
             font-size: 12px;
             color: var(--ast-global-color-6);
@@ -189,7 +206,7 @@
             border-radius: 8px;
             padding: 6px 10px;
             font-size: 11px;
-            font-family: 'DM Sans', sans-serif;
+            font-family: var(--font-body);
             cursor: pointer;
             transition: all 0.2s;
             letter-spacing: 0.02em;
@@ -238,7 +255,7 @@
         }
 
         .welcome-banner h3 {
-            font-family: 'Sora', sans-serif;
+            font-family: var(--font-heading);
             font-size: 14px;
             font-weight: 700;
             color: var(--ast-global-color-2);
@@ -282,29 +299,39 @@
         }
 
         .msg-avatar {
-            width: 28px;
-            height: 28px;
+            width: 34px;
+            height: 34px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 13px;
+            font-size: 19px;
+            line-height: 1;
             flex-shrink: 0;
             margin-bottom: 2px;
         }
 
         .msg-group.bot .msg-avatar {
             background: linear-gradient(135deg, var(--ocean) 0%, var(--ocean-deep) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            box-shadow: 0 2px 6px rgba(var(--rgb-ocean), 0.22);
         }
 
+        /* Soft fill so it reads next to the bot’s blue ring without matching the loud bubble orange. */
         .msg-group.user .msg-avatar {
-            background: var(--sand-warm);
+            /* background: linear-gradient(180deg, var(--accent-soft) 0%, var(--sand-warm) 100%); */
+            background: rgba(var(--rgb-accent), 0.16);
+            border: 1px solid rgba(var(--rgb-accent), 0.22);
+            box-shadow: 0 1px 3px rgba(var(--rgb-accent), 0.06);
+            font-size: 22px;
         }
 
         .msg-bubble {
             padding: 11px 15px;
             border-radius: var(--radius-msg);
             font-size: 13.5px;
+            font-style: normal;
+            font-weight: 400;
             line-height: 1.58;
             word-wrap: break-word;
             white-space: pre-wrap;
@@ -338,15 +365,16 @@
 
         .intent-tag {
             display: inline-block;
-            background: var(--accent-soft);
+            background: rgba(var(--rgb-accent), 0.16);
             color: var(--accent-deep);
             font-size: 10px;
             font-weight: 600;
             padding: 2px 7px;
             border-radius: 20px;
             margin-left: 6px;
-            font-family: 'Sora', sans-serif;
+            font-family: var(--font-heading);
             letter-spacing: 0.02em;
+            border: 1px solid rgba(var(--rgb-accent), 0.42);
         }
 
         .typing-indicator {
@@ -427,7 +455,7 @@
             color: var(--ink-faint);
             letter-spacing: 0.06em;
             text-transform: uppercase;
-            font-family: 'Sora', sans-serif;
+            font-family: var(--font-heading);
         }
 
         .quick-chevron {
@@ -469,7 +497,7 @@
             color: var(--ocean);
             font-size: 12px;
             font-weight: 500;
-            font-family: 'DM Sans', sans-serif;
+            font-family: var(--font-body);
             padding: 6px 12px;
             border-radius: 20px;
             cursor: pointer;
@@ -505,7 +533,7 @@
             border-radius: 24px;
             padding: 11px 18px;
             font-size: 13.5px;
-            font-family: 'DM Sans', sans-serif;
+            font-family: var(--font-body);
             color: var(--ink);
             background: var(--surface);
             outline: none;
@@ -650,9 +678,10 @@
                      width="120" height="80" alt="Vacations for YOU" loading="eager" decoding="async">
             </div>
             <div class="header-info">
+                <div class="header-name">Vacations for YOU</div>
                 <div class="header-status">
                     <span class="status-dot"></span>
-                    AI Support · Available 24/7
+                    Chat Support · Available 24/7
                 </div>
             </div>
             <div class="header-actions">
@@ -789,7 +818,7 @@
 
         const avatar = document.createElement('div');
         avatar.className = 'msg-avatar';
-        avatar.textContent = role === 'bot' ? '🤖' : '👤';
+        avatar.textContent = role === 'bot' ? '🤖' : '👦🏻';
 
         const bubble = document.createElement('div');
         bubble.className = 'msg-bubble';
