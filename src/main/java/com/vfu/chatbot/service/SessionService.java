@@ -112,9 +112,7 @@ public class SessionService {
     @Transactional
     public void cleanupExpiredSessions() {
         int deleted = sessionRepository.deleteAllByExpiresAtBefore(LocalDateTime.now());
-        if (deleted > 0) {
-            log.info("Cleaned {} expired sessions", deleted);
-        }
+        log.info("Expired session cleanup finished: removed {} row(s)", deleted);
     }
 }
 
