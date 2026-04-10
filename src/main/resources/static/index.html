@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0077B6">
     <title>Vacations for YOU — Support</title>
+    <link rel="icon" type="image/png" href="images/vacations-for-you-icon-background-e1705507231850-300x109.png">
+    <link rel="apple-touch-icon" href="images/vacations-for-you-icon-background-e1705507231850-300x109.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500&display=swap"
           rel="stylesheet">
@@ -59,13 +62,13 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 24px;
+            padding: 20px;
         }
 
         .chat-card {
             width: 100%;
-            max-width: 480px;
-            height: min(700px, calc(100vh - 48px));
+            max-width: 560px;
+            height: min(820px, calc(100vh - 40px));
             background: var(--white);
             border-radius: var(--radius);
             box-shadow: var(--shadow-lg);
@@ -109,38 +112,32 @@
             border-radius: 50%;
         }
 
-        .header-avatar {
-            width: 46px;
-            height: 46px;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 50%;
+        .header-brand {
+            flex-shrink: 0;
+            z-index: 1;
             display: flex;
             align-items: center;
-            justify-content: center;
-            font-size: 22px;
-            flex-shrink: 0;
-            border: 2px solid rgba(255, 255, 255, 0.25);
-            backdrop-filter: blur(4px);
+            max-width: min(280px, 62%);
+        }
+
+        .header-logo {
+            height: 46px;
+            width: auto;
+            max-width: 100%;
+            object-fit: contain;
+            display: block;
         }
 
         .header-info {
             flex: 1;
             z-index: 1;
-        }
-
-        .header-name {
-            font-family: 'Sora', sans-serif;
-            font-size: 15px;
-            font-weight: 700;
-            color: #fff;
-            line-height: 1.2;
-            letter-spacing: -0.01em;
+            min-width: 0;
         }
 
         .header-status {
             font-size: 12px;
             color: rgba(255, 255, 255, 0.8);
-            margin-top: 3px;
+            margin-top: 0;
             display: flex;
             align-items: center;
             gap: 5px;
@@ -547,12 +544,46 @@
         }
 
         .chat-footer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
             text-align: center;
             font-size: 10.5px;
             color: var(--ink-faint);
-            padding: 6px 0 10px;
+            padding: 10px 14px 12px;
             background: var(--white);
             flex-shrink: 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .footer-brand-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            color: var(--ink-muted);
+            gap: 8px;
+            flex-wrap: wrap;
+            transition: color 0.15s;
+        }
+
+        .footer-brand-link:hover {
+            color: var(--ocean);
+        }
+
+        .footer-logo {
+            height: 42px;
+            width: auto;
+            max-width: min(300px, 85vw);
+            object-fit: contain;
+            display: block;
+        }
+
+        .footer-brand-text {
+            font-size: 11px;
+            font-weight: 500;
         }
 
         .msg-in {
@@ -581,6 +612,14 @@
                 border-radius: 0;
                 border: none;
             }
+
+            .header-logo {
+                height: 38px;
+            }
+
+            .footer-logo {
+                height: 36px;
+            }
         }
     </style>
 </head>
@@ -589,9 +628,11 @@
     <div class="chat-card">
 
         <div class="chat-header">
-            <div class="header-avatar">🏖️</div>
+            <div class="header-brand">
+                <img class="header-logo" src="images/VFY-LOGO-FULL-WHITE-120x80.webp"
+                     width="120" height="80" alt="Vacations for YOU" loading="eager" decoding="async">
+            </div>
             <div class="header-info">
-                <div class="header-name">Vacations for YOU</div>
                 <div class="header-status">
                     <span class="status-dot"></span>
                     AI Support · Available 24/7
@@ -654,7 +695,14 @@
             </button>
         </div>
 
-        <div class="chat-footer">Powered by Vacations for YOU</div>
+        <div class="chat-footer">
+            <a class="footer-brand-link" href="https://vacationsforyou.com/" target="_blank" rel="noopener noreferrer"
+               title="Vacations for YOU — cabin &amp; beach rentals">
+                <img class="footer-logo" src="images/VFY-LOGO-FULL-COLOR-300x200.webp"
+                     width="300" height="200" alt="Vacations for YOU" loading="lazy" decoding="async">
+                <span class="footer-brand-text">vacationsforyou.com</span>
+            </a>
+        </div>
 
     </div>
 </div>
