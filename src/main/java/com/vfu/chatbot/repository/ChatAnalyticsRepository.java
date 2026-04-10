@@ -1,13 +1,21 @@
-package com.vfu.chatbot.analytics;
+package com.vfu.chatbot.repository;
 
+import com.vfu.chatbot.analytics.ChatAnalytics;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
 public interface ChatAnalyticsRepository extends JpaRepository<ChatAnalytics, Long> {
+
+    @Modifying
+    @Query(value = "DELETE FROM chat_analytics WHERE created_at < :cutoff", nativeQuery = true)
+    int deleteWhereCreatedAtBefore(@Param("cutoff") LocalDateTime cutoff);
 
     // Dashboard stats
     @Query(value = "SELECT COUNT(*) FROM chat_analytics WHERE created_at > NOW() - INTERVAL '24 hours'", nativeQuery = true)

@@ -1,5 +1,6 @@
 package com.vfu.chatbot.analytics;
 
+import com.vfu.chatbot.repository.ChatAnalyticsRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
