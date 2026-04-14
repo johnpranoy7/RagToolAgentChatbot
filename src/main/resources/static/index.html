@@ -104,7 +104,9 @@
 </div>
 <script>
     const messagesArea = document.getElementById('messagesArea');
+    /** Per browser tab: survives refresh, clears when tab closes (unlike localStorage). */
     const TRANSCRIPT_KEY = 'vacationsChatTranscript';
+    const SESSION_KEY = 'chatSessionId';
 
     function normalizeSessionId(raw) {
         if (raw == null || raw === '' || String(raw).toLowerCase() === 'unknown') return null;
@@ -112,7 +114,7 @@
         return s || null;
     }
 
-    let SESSION_ID = normalizeSessionId(localStorage.getItem('chatSessionId'));
+    let SESSION_ID = normalizeSessionId(sessionStorage.getItem(SESSION_KEY));
     let transcript = [];
 
     const inputField = document.getElementById('inputField');
@@ -137,7 +139,7 @@
 
     function saveTranscript() {
         try {
-            localStorage.setItem(TRANSCRIPT_KEY, JSON.stringify(transcript));
+            sessionStorage.setItem(TRANSCRIPT_KEY, JSON.stringify(transcript));
         } catch (e) {
             console.warn('Could not save chat transcript', e);
         }
@@ -213,7 +215,7 @@
 
             // Get new sessionId from header if needed
             SESSION_ID = normalizeSessionId(response.headers.get('X-Session-ID') || SESSION_ID);
-            if (SESSION_ID) localStorage.setItem('chatSessionId', SESSION_ID);
+            if (SESSION_ID) sessionStorage.setItem(SESSION_KEY, SESSION_ID);
 
             const data = await response.json();
             hideTyping();
@@ -332,7 +334,7 @@
 
     function restoreTranscript() {
         try {
-            const raw = localStorage.getItem(TRANSCRIPT_KEY);
+            const raw = sessionStorage.getItem(TRANSCRIPT_KEY);
             if (!raw) return;
             const items = JSON.parse(raw);
             if (!Array.isArray(items) || items.length === 0) return;
@@ -352,8 +354,8 @@
     function resetChat() {
         transcript = [];
         try {
-            localStorage.removeItem(TRANSCRIPT_KEY);
-            localStorage.removeItem('chatSessionId');
+            sessionStorage.removeItem(TRANSCRIPT_KEY);
+            sessionStorage.removeItem(SESSION_KEY);
         } catch (e) {
             /* ignore */
         }
@@ -369,7 +371,15 @@
         inputField.focus();
     }
 
+    function clearLegacyLocalChatKeys() {
+        try {
+            localStorage.removeItem(TRANSCRIPT_KEY);
+            localStorage.removeItem(SESSION_KEY);
+        } catch (e) { /* ignore */ }
+    }
+
     window.addEventListener('load', () => {
+        clearLegacyLocalChatKeys();
         restoreTranscript();
         inputField.focus();
     });
