@@ -15,6 +15,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,6 +31,12 @@ import java.util.regex.Pattern;
 @CrossOrigin(origins = "*")
 @Slf4j
 public class ChatController {
+
+    @Value("${app.vfu.customerSupport.phone:}")
+    private String customerSupportPhone;
+
+    @Value("${app.vfu.customerSupport.email:}")
+    private String customerSupportEmail;
 
     private final ChatClient chatClient;
     private final ConfidenceService confidenceService;
@@ -121,6 +128,8 @@ public class ChatController {
                     sessionData.put("unitId", sessionEntity.getUnitId() != null ? sessionEntity.getUnitId() : "");
                     sessionData.put("latitude", sessionEntity.getLatitude() != null ? sessionEntity.getLatitude() : "");
                     sessionData.put("longitude", sessionEntity.getLongitude() != null ? sessionEntity.getLongitude() : "");
+                    sessionData.put("customerSupportPhone", customerSupportPhone != null ? customerSupportPhone : "");
+                    sessionData.put("customerSupportEmail", customerSupportEmail != null ? customerSupportEmail : "");
                 },
                 () -> {
                     sessionData.put("isVerified", false);
@@ -129,6 +138,8 @@ public class ChatController {
                     sessionData.put("unitId", "");
                     sessionData.put("latitude", "");
                     sessionData.put("longitude", "");
+                    sessionData.put("customerSupportPhone", customerSupportPhone != null ? customerSupportPhone : "");
+                    sessionData.put("customerSupportEmail", customerSupportEmail != null ? customerSupportEmail : "");
                 }
         );
 
@@ -183,12 +194,12 @@ public class ChatController {
                 return Double.parseDouble(matcher.group(1));
             } catch (NumberFormatException e) {
                 log.error("Error extracting confidence", e);
-                confidence = 0.01;
+                // fall through to default below
             }
         }
         // 2. SAFETY NET: Perfect contextual responses
         if (rawResponse.contains("6-digit") && rawResponse.contains("last name")) {
-            confidence = 0.85;  // Perfect "ask for reservation" response
+            return 0.85;  // Perfect "ask for reservation" response
         }
         return confidence;
     }

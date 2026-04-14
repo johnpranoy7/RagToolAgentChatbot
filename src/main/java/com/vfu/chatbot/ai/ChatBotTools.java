@@ -51,7 +51,7 @@ public class ChatBotTools {
         );
 
         if (results.isEmpty()) {
-            return "Contact Customer Service: 1-800-555-1234";
+            return "NO_POLICY_MATCH";
         }
 
         return results.stream()

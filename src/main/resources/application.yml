@@ -74,8 +74,9 @@ app:
     # chat_analytics: delete rows with created_at older than 7 days (daily at 11 PM)
     cleanup-cron: "0 0 23 * * *"
   vfu:
-    customer-service-phone: ${CUSTOMER_SUPPORT_PHONE}
-    customer-service-email: ${CUSTOMER_SUPPORT_EMAIL}
+    customerSupport:
+      phone: ${CUSTOMER_SUPPORT_PHONE}
+      email: ${CUSTOMER_SUPPORT_EMAIL}
 
 streamx:
   endpoint:
