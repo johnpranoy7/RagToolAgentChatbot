@@ -177,21 +177,23 @@ public class ChatController {
 
 
     private String extractContent(String rawResponse) {
-        // Everything before **CONFIDENCE:**
-        String[] parts = rawResponse.split("\\*\\*CONFIDENCE:", 2);
-        if (parts.length > 0) {
-            return parts[0].trim().replaceAll("^\\*\\*ANSWER:\\*\\*", "").trim();
-        }
-        return rawResponse;
+        // Accept both markdown and plain labels, e.g. "**CONFIDENCE:**" or "CONFIDENCE:"
+        Pattern metaStart = Pattern.compile("(?im)^\\s*(\\*\\*\\s*)?(CONFIDENCE|SOURCE)\\s*:\\s*(\\*\\*)?.*$");
+        Matcher matcher = metaStart.matcher(rawResponse);
+        String answerBlock = matcher.find() ? rawResponse.substring(0, matcher.start()) : rawResponse;
+        return answerBlock
+                .trim()
+                .replaceAll("(?i)^\\s*(\\*\\*\\s*)?ANSWER\\s*:\\s*(\\*\\*)?", "")
+                .trim();
     }
 
     private double extractConfidence(String rawResponse) {
-        Pattern pattern = Pattern.compile("(?i)\\*\\*CONFIDENCE:\\*\\*\\s([0-9]\\.[0-9]{2})");
+        Pattern pattern = Pattern.compile("(?im)^\\s*(\\*\\*\\s*)?CONFIDENCE\\s*:\\s*(\\*\\*)?\\s*([0-9](?:\\.[0-9]{1,2})?)\\s*$");
         Matcher matcher = pattern.matcher(rawResponse);
         double confidence = 0.01;
         if (matcher.find()) {
             try {
-                return Double.parseDouble(matcher.group(1));
+                return Double.parseDouble(matcher.group(3));
             } catch (NumberFormatException e) {
                 log.error("Error extracting confidence", e);
                 // fall through to default below
@@ -205,10 +207,10 @@ public class ChatController {
     }
 
     private String extractSource(String rawResponse) {
-        Pattern pattern = Pattern.compile("(?i)\\*\\*SOURCE:\\*\\*([^\\n]+)");
+        Pattern pattern = Pattern.compile("(?im)^\\s*(\\*\\*\\s*)?SOURCE\\s*:\\s*(\\*\\*)?\\s*([^\\r\\n]+)\\s*$");
         Matcher matcher = pattern.matcher(rawResponse);
         if (matcher.find()) {
-            return matcher.group(1).trim();
+            return matcher.group(3).trim();
         }
         return "unknown";
     }
