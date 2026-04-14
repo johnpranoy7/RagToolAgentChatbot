@@ -52,8 +52,11 @@ public class ConfidenceService {
             case "RESERVATION":
             case "PROPERTY":
             case "GREETING":
+            case "NEEDS_VERIFICATION":
+            case "AGENT_HANDOFF":
                 return llmConfidence; // deterministic API
             case "NONE":
+            case "OUT_OF_SCOPE":
                 return 0.0;
             default:
                 double confidenceFromLlmAsJudge = this.evaluateConfidence(question, answer);

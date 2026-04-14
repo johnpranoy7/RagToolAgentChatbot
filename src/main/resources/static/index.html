@@ -63,11 +63,11 @@
                 <div class="quick-replies-panel-inner">
                     <div class="quick-replies-chips">
                         <button type="button" class="quick-btn" onclick="sendQuick('What is your cancellation policy?')">Cancellation Policy</button>
-                        <button type="button" class="quick-btn" onclick="sendQuick('What time is check-in?')">Check-in Time</button>
-                        <button type="button" class="quick-btn" onclick="sendQuick('Are pets allowed?')">Pet Policy</button>
-                        <button type="button" class="quick-btn" onclick="sendQuick('I want to check my reservation')">My Reservation</button>
-                        <button type="button" class="quick-btn" onclick="sendQuick('How does payment work?')">Payment Info</button>
-                        <button type="button" class="quick-btn" onclick="sendQuick('I want to speak to a human agent')">Talk to Agent</button>
+                        <button type="button" class="quick-btn" onclick="sendQuick('What is the check-in time for my booking?')">Check-in Time</button>
+                        <button type="button" class="quick-btn" onclick="sendQuick('Are pets allowed at the property?')">Pet Policy</button>
+                        <button type="button" class="quick-btn" onclick="sendQuick('I would like to check my reservation details')">My Reservation</button>
+                        <button type="button" class="quick-btn" onclick="sendQuick('How does payment work for my booking?')">Payment Info</button>
+                        <button type="button" class="quick-btn" onclick="sendQuick('I would like to speak to a human agent for help')">Talk to Agent</button>
                     </div>
                 </div>
             </div>
@@ -227,7 +227,10 @@
             });
         } catch (err) {
             hideTyping();
-            appendMessage('bot', 'Sorry, something went wrong. Please refresh or call 1-800-VACATION.', null);
+            appendMessage('bot', 'Sorry, I am unable to communicate with the server right now. Please try again in a moment.', {
+                intent: 'system_error',
+                confidence: 1.0
+            });
         } finally {
             setLoading(false);
             inputField.focus();

@@ -31,6 +31,10 @@ import java.util.regex.Pattern;
 @CrossOrigin(origins = "*")
 @Slf4j
 public class ChatController {
+    private static final String SOURCE_NEEDS_VERIFICATION = "NEEDS_VERIFICATION";
+    private static final String SOURCE_AGENT_HANDOFF = "AGENT_HANDOFF";
+    private static final String SOURCE_OUT_OF_SCOPE = "OUT_OF_SCOPE";
+    private static final String SOURCE_RULE_FALLBACK = "RULE_FALLBACK";
 
     @Value("${app.vfu.customerSupport.phone:}")
     private String customerSupportPhone;
@@ -77,7 +81,8 @@ public class ChatController {
         // 2. PARSE CONFIDENCE & SOURCE (your exact format)
         String answer = extractContent(rawResponse);
         double ruleConfidence = extractConfidence(rawResponse);
-        String source = extractSource(rawResponse);
+        String parsedSource = extractSource(rawResponse);
+        String source = classifySource(parsedSource, chatRequest.message(), answer);
 
         // For API using LLM Confidence, for RAG and General Chat using LLM-AS-Judge implementation
         double judgeConfidence = confidenceService.calculateConfidence(chatRequest.message(), answer, source, ruleConfidence);
@@ -87,10 +92,17 @@ public class ChatController {
         chatAnalyticsService.logChat(sessionId, chatRequest.message(), answer, ruleConfidence >= 0.8 ? ruleConfidence : judgeConfidence,
                 source);
 
-        if (source.equalsIgnoreCase("NONE") || source.equalsIgnoreCase("unknown")) {
-            metricCounters.incrementAgentEscalations(); //Still an Escalation
+        if (source.equalsIgnoreCase(SOURCE_AGENT_HANDOFF)) {
+            metricCounters.incrementAgentEscalations();
+            chatResponse = new ChatResponse(answer, Math.max(ruleConfidence, 0.95), SOURCE_AGENT_HANDOFF, sessionId);
+        } else if (source.equalsIgnoreCase(SOURCE_NEEDS_VERIFICATION)) {
+            chatResponse = new ChatResponse(answer, Math.max(ruleConfidence, 0.85), SOURCE_NEEDS_VERIFICATION, sessionId);
+        } else if (source.equalsIgnoreCase(SOURCE_OUT_OF_SCOPE)) {
+            chatResponse = new ChatResponse(answer, ruleConfidence, SOURCE_OUT_OF_SCOPE, sessionId);
+        } else if (source.equalsIgnoreCase("NONE") || source.equalsIgnoreCase("unknown") || source.equalsIgnoreCase(SOURCE_RULE_FALLBACK)) {
+            metricCounters.incrementAgentEscalations();
             log.info("Rule fallBack response :{}", answer);
-            chatResponse = new ChatResponse(answer, ruleConfidence, "RULE_FALLBACK", sessionId);
+            chatResponse = new ChatResponse(answer, ruleConfidence, SOURCE_RULE_FALLBACK, sessionId);
         } else if (ruleConfidence >= 0.8) {
             // Tool-backed → Trust rules, deliver
             chatResponse = new ChatResponse(answer, ruleConfidence, source, sessionId);
@@ -213,6 +225,45 @@ public class ChatController {
             return matcher.group(3).trim();
         }
         return "unknown";
+    }
+
+    private String classifySource(String parsedSource, String userMessage, String answer) {
+        String message = userMessage == null ? "" : userMessage.toLowerCase();
+        String content = answer == null ? "" : answer.toLowerCase();
+
+        // Normalize key conversational states even if the model emits MEMORY/other labels.
+        if (isNeedsVerification(content)) {
+            return SOURCE_NEEDS_VERIFICATION;
+        }
+        if (isHumanHandoffRequest(message, content)) {
+            return SOURCE_AGENT_HANDOFF;
+        }
+
+        if (!parsedSource.equalsIgnoreCase("NONE") && !parsedSource.equalsIgnoreCase("unknown")) {
+            return parsedSource;
+        }
+        if (content.contains("i can only help with reservation details")
+                || content.contains("contact customer service")) {
+            return SOURCE_OUT_OF_SCOPE;
+        }
+        return SOURCE_RULE_FALLBACK;
+    }
+
+    private boolean isNeedsVerification(String content) {
+        return content.contains("6-digit")
+                && content.contains("last name")
+                && (content.contains("booking") || content.contains("reservation"));
+    }
+
+    private boolean isHumanHandoffRequest(String message, String content) {
+        boolean userAsked = message.contains("human")
+                || message.contains("agent")
+                || message.contains("representative")
+                || message.contains("real person");
+        boolean botHandoff = content.contains("connect with customer support agent")
+                || content.contains("connect with customer service")
+                || content.contains("human agent");
+        return userAsked || botHandoff;
     }
 
 }

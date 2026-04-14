@@ -81,7 +81,7 @@ public class OpenAiConfig {
             - reservation_info_tool used → 0.92 RESERVATION
             - property_info_tool used → 0.92 PROPERTY
             - nearby_places_tool used → 0.95 GEOAPIFY_PLACES
-            - asking for reservation ID → 0.85 MEMORY
+            - asking for reservation ID + last name → 0.85 NEEDS_VERIFICATION
             - simple math on tool data → 0.80 CALCULATION
             - from chat memory → 0.85 MEMORY
             - no tools/no data → 0.00 NONE → "**Please Contact Customer Service: {customerSupportPhone} / {customerSupportEmail}**"
