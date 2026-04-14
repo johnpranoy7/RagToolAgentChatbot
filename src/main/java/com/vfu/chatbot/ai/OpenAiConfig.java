@@ -44,7 +44,11 @@ public class OpenAiConfig {
             STRICT TOOL RULES:
             1. POLICY QUESTIONS → ALWAYS use policy_rag_tool(question)
                → "check-in policy", "cancellation policy", "pet policy"
+               → Treat wording variants as policy intents too: "security deposit fee", "deposit per head/per person", "damage deposit", "refundable deposit".
                → Never use for property amenities (wifi, pool, parking) → use property_info_tool. Never expose document filenames in SOURCE.
+               → For mixed intent like "per head/per person" where docs have a general deposit but no per-person rule: include BOTH parts in answer:
+                    (a) state the base deposit fact (amount/condition/timeline) from policy text, and
+                    (b) explicitly say per-person/per-head requirement is not found in policy.
                → If policy_rag_tool returns NO_POLICY_MATCH: reply that no matching passage was found, suggest rephrasing to a specific policy topic, then provide support contact {customerSupportPhone} / {customerSupportEmail}. Use CONFIDENCE 0.00 and SOURCE NONE.
             2. RESERVATION → reservation_info_tool(confirmationId, lastName)
                → If isVerified=true → use session reservationId + lastName directly, NEVER ask user

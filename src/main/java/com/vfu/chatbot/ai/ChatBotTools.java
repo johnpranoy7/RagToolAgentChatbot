@@ -1,28 +1,23 @@
 package com.vfu.chatbot.ai;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Optional;
+
+import org.springframework.ai.chat.model.ToolContext;
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.stereotype.Component;
+
 import com.vfu.chatbot.StreamXOrchestrator;
 import com.vfu.chatbot.exception.AiToolException;
 import com.vfu.chatbot.model.SessionEntity;
 import com.vfu.chatbot.service.GeoapifyPlacesApiService;
 import com.vfu.chatbot.service.SessionService;
-import com.vfu.chatbot.service.StreamXService;
 import com.vfu.chatbot.service.domain.GeoapifyResponse;
 import com.vfu.chatbot.service.domain.PropertyResponse;
 import com.vfu.chatbot.service.domain.ReservationResponse;
+
 import io.micrometer.core.annotation.Timed;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.model.ToolContext;
-import org.springframework.ai.document.Document;
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.ai.vectorstore.SearchRequest;
-import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
-import org.springframework.stereotype.Component;
-
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Component
 @Slf4j
@@ -30,14 +25,14 @@ public class ChatBotTools {
 
     private final SessionService sessionService;
     private final GeoapifyPlacesApiService geoapifyPlacesApiService;
-    private final PgVectorStore vectorStore;
     private final StreamXOrchestrator streamXOrchestrator;
+    private final PolicyRagService policyRagService;
 
-    public ChatBotTools(StreamXService streamXService, SessionService sessionService, GeoapifyPlacesApiService geoapifyPlacesApiService, PgVectorStore vectorStore, ObjectMapper objectMapper, StreamXOrchestrator streamXOrchestrator) {
+    public ChatBotTools(SessionService sessionService, GeoapifyPlacesApiService geoapifyPlacesApiService, StreamXOrchestrator streamXOrchestrator, PolicyRagService policyRagService) {
         this.sessionService = sessionService;
         this.geoapifyPlacesApiService = geoapifyPlacesApiService;
-        this.vectorStore = vectorStore;
         this.streamXOrchestrator = streamXOrchestrator;
+        this.policyRagService = policyRagService;
     }
 
     @Timed(value = "chatbot.tool.policy_rag", description = "Vector policy search")
@@ -46,17 +41,7 @@ public class ChatBotTools {
             @ToolParam(description = "Policy question to search") String userQuestion, ToolContext toolContext) {
 
         log.info("Policy RAG search: {}", userQuestion);
-        List<Document> results = vectorStore.similaritySearch(
-                SearchRequest.builder().query(userQuestion).topK(6).build()
-        );
-
-        if (results.isEmpty()) {
-            return "NO_POLICY_MATCH";
-        }
-
-        return results.stream()
-                .map(Document::getFormattedContent)
-                .collect(Collectors.joining("\n\n---\n\n"));
+        return policyRagService.searchPolicy(userQuestion);
     }
 
     @Timed(value = "chatbot.tool.property_info", description = "Property lookup")
