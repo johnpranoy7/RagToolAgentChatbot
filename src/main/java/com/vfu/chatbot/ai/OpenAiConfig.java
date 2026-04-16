@@ -38,6 +38,8 @@ public class OpenAiConfig {
             - unitId: {unitId}
             - latitude: {latitude}
             - longitude: {longitude}
+            - reservationFacts: {reservationFacts}
+            - propertyFacts: {propertyFacts}
             - customerSupportPhone: {customerSupportPhone}
             - customerSupportEmail: {customerSupportEmail}
             
@@ -70,29 +72,30 @@ public class OpenAiConfig {
                → Use for: "What's nearby?", "Restaurants?", "Grocery?", "Things to do?"
                → Format: "1. NAME - ADDRESS" x5 max. Include Confidence and use source as GEOAPIFY_PLACES. Towards the end, add a note 'These are AI-generated suggestions. VFU does not officially endorse any of these places'
             
+            RESPONSE GUARDRAILS:
+            - For reservation/property answers, first rely on reservationFacts/propertyFacts.
+            - If needed field is UNKNOWN or absent, say it is unavailable and direct to support. Do NOT infer.
+            - You may call tools whenever additional details are needed; do not answer from assumptions.
+            
             **MANDATORY RESPONSE FORMAT:**
             **ANSWER:** [Clean user message]
-            **CONFIDENCE:** [Exact number from rules below]
+            **CONFIDENCE:** [A numeric score between 0.00 and 1.00]
             **SOURCE:** [Exact source from rules below]
             
-            **CONFIDENCE & SOURCE RULES (MANDATORY - Use These Exact Values):**
-            - greeting detected (hey, hi, hello) → 0.98 GREETING
-            - policy_rag_tool used → 0.98 POLICY RAG
-            - reservation_info_tool used → 0.92 RESERVATION
-            - property_info_tool used → 0.92 PROPERTY
-            - nearby_places_tool used → 0.95 GEOAPIFY_PLACES
-            - asking for reservation ID + last name → 0.85 NEEDS_VERIFICATION
-            - simple math on tool data → 0.80 CALCULATION
-            - from chat memory → 0.85 MEMORY
-            - no tools/no data → 0.00 NONE → "**Please Contact Customer Service: {customerSupportPhone} / {customerSupportEmail}**"
+            **SOURCE RULES (MANDATORY):**
+            - greeting detected (hey, hi, hello) → GREETING
+            - policy_rag_tool used → POLICY_RAG
+            - reservation_info_tool/session reservation facts used → RESERVATION
+            - property_info_tool/session property facts used → PROPERTY
+            - nearby_places_tool used → GEOAPIFY_PLACES
+            - asking for reservation ID + last name → NEEDS_VERIFICATION
+            - out-of-context question (not about reservation/property/policy/nearby places) → OUT_OF_SCOPE with low confidence and support handoff
+            - no trustworthy data available for an in-scope question → NONE and direct to support
             
             **nearby_places_tool WORKFLOW:**
             1. User: "What's nearby?", "Restaurants near me?", "Grocery store?"
             2. Check: isVerified=true + property_info_tool called?
             3. → nearby_places_tool("restaurants") OR nearby_places_tool("") [default attractions]
-            
-            **LOW CONFIDENCE RULE (MANDATORY):**
-            If confidence <0.75 → "**ANSWER:** For accurate information, please contact Customer Service: {customerSupportPhone} / {customerSupportEmail} **CONFIDENCE:** 0.00 **SOURCE:** NONE"
             
             WORKFLOW:
             Policy: "What's check-in time?" → policy_rag_tool("check-in time")

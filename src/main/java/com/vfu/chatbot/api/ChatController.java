@@ -82,33 +82,36 @@ public class ChatController {
         String answer = extractContent(rawResponse);
         double ruleConfidence = extractConfidence(rawResponse);
         String parsedSource = extractSource(rawResponse);
-        String source = classifySource(parsedSource, chatRequest.message(), answer);
+        String evidenceContext = buildEvidenceContext(sessionData);
+        String source = classifySource(parsedSource, chatRequest.message(), answer, evidenceContext);
 
         // For API using LLM Confidence, for RAG and General Chat using LLM-AS-Judge implementation
-        double judgeConfidence = confidenceService.calculateConfidence(chatRequest.message(), answer, source, ruleConfidence);
+        double judgeConfidence = confidenceService.calculateConfidence(
+                chatRequest.message(), answer, source, ruleConfidence, evidenceContext);
         log.info("message from rule LLM :{} and source:{}", answer, source);
         log.info("Confidence in Controller from rule is {}, judge:{}", ruleConfidence, judgeConfidence);
         ChatResponse chatResponse;
-        chatAnalyticsService.logChat(sessionId, chatRequest.message(), answer, ruleConfidence >= 0.8 ? ruleConfidence : judgeConfidence,
+        double finalConfidenceForAnalytics = chooseFinalConfidence(ruleConfidence, judgeConfidence, source);
+        chatAnalyticsService.logChat(sessionId, chatRequest.message(), answer, finalConfidenceForAnalytics,
                 source);
 
         if (source.equalsIgnoreCase(SOURCE_AGENT_HANDOFF)) {
             metricCounters.incrementAgentEscalations();
-            chatResponse = new ChatResponse(answer, Math.max(ruleConfidence, 0.95), SOURCE_AGENT_HANDOFF, sessionId);
+            chatResponse = new ChatResponse(answer, Math.max(judgeConfidence, 0.95), SOURCE_AGENT_HANDOFF, sessionId);
         } else if (source.equalsIgnoreCase(SOURCE_NEEDS_VERIFICATION)) {
-            chatResponse = new ChatResponse(answer, Math.max(ruleConfidence, 0.85), SOURCE_NEEDS_VERIFICATION, sessionId);
+            chatResponse = new ChatResponse(answer, Math.max(judgeConfidence, 0.85), SOURCE_NEEDS_VERIFICATION, sessionId);
         } else if (source.equalsIgnoreCase(SOURCE_OUT_OF_SCOPE)) {
-            chatResponse = new ChatResponse(answer, ruleConfidence, SOURCE_OUT_OF_SCOPE, sessionId);
+            chatResponse = new ChatResponse(answer, Math.min(ruleConfidence, judgeConfidence), SOURCE_OUT_OF_SCOPE, sessionId);
         } else if (source.equalsIgnoreCase("NONE") || source.equalsIgnoreCase("unknown") || source.equalsIgnoreCase(SOURCE_RULE_FALLBACK)) {
             metricCounters.incrementAgentEscalations();
             log.info("Rule fallBack response :{}", answer);
-            chatResponse = new ChatResponse(answer, ruleConfidence, SOURCE_RULE_FALLBACK, sessionId);
-        } else if (ruleConfidence >= 0.8) {
-            // Tool-backed → Trust rules, deliver
-            chatResponse = new ChatResponse(answer, ruleConfidence, source, sessionId);
+            chatResponse = new ChatResponse(answer, Math.min(ruleConfidence, judgeConfidence), SOURCE_RULE_FALLBACK, sessionId);
+        } else if (isTrustedToolSource(source) && ruleConfidence >= 0.75) {
+            // Do not suppress valid tool-backed answers due to judge under-scoring.
+            double stabilizedConfidence = Math.min(ruleConfidence, Math.max(judgeConfidence, 0.45));
+            chatResponse = new ChatResponse(answer, stabilizedConfidence, source, sessionId);
         } else if (judgeConfidence >= 0.4) {
-            // Judge confident enough → Deliver
-            chatResponse = new ChatResponse(answer, judgeConfidence, source, sessionId);
+            chatResponse = new ChatResponse(answer, chooseFinalConfidence(ruleConfidence, judgeConfidence, source), source, sessionId);
         } else {
             // Both low → Agent escalation
             metricCounters.incrementAgentEscalations();
@@ -140,6 +143,8 @@ public class ChatController {
                     sessionData.put("unitId", sessionEntity.getUnitId() != null ? sessionEntity.getUnitId() : "");
                     sessionData.put("latitude", sessionEntity.getLatitude() != null ? sessionEntity.getLatitude() : "");
                     sessionData.put("longitude", sessionEntity.getLongitude() != null ? sessionEntity.getLongitude() : "");
+                    sessionData.put("reservationFacts", sessionEntity.getCachedReservationSummary() != null ? sessionEntity.getCachedReservationSummary() : "");
+                    sessionData.put("propertyFacts", sessionEntity.getCachedPropertySummary() != null ? sessionEntity.getCachedPropertySummary() : "");
                     sessionData.put("customerSupportPhone", customerSupportPhone != null ? customerSupportPhone : "");
                     sessionData.put("customerSupportEmail", customerSupportEmail != null ? customerSupportEmail : "");
                 },
@@ -150,6 +155,8 @@ public class ChatController {
                     sessionData.put("unitId", "");
                     sessionData.put("latitude", "");
                     sessionData.put("longitude", "");
+                    sessionData.put("reservationFacts", "");
+                    sessionData.put("propertyFacts", "");
                     sessionData.put("customerSupportPhone", customerSupportPhone != null ? customerSupportPhone : "");
                     sessionData.put("customerSupportEmail", customerSupportEmail != null ? customerSupportEmail : "");
                 }
@@ -227,43 +234,72 @@ public class ChatController {
         return "unknown";
     }
 
-    private String classifySource(String parsedSource, String userMessage, String answer) {
-        String message = userMessage == null ? "" : userMessage.toLowerCase();
-        String content = answer == null ? "" : answer.toLowerCase();
-
-        // Normalize key conversational states even if the model emits MEMORY/other labels.
-        if (isNeedsVerification(content)) {
-            return SOURCE_NEEDS_VERIFICATION;
+    private String classifySource(String parsedSource, String userMessage, String answer, String evidenceContext) {
+        String normalizedParsedSource = normalizeSourceLabel(parsedSource);
+        if (!normalizedParsedSource.equalsIgnoreCase("NONE")
+                && !normalizedParsedSource.equalsIgnoreCase("unknown")
+                && !normalizedParsedSource.equalsIgnoreCase(SOURCE_RULE_FALLBACK)) {
+            return normalizedParsedSource;
         }
-        if (isHumanHandoffRequest(message, content)) {
+
+        String adjudicatedSource = confidenceService.adjudicateSource(
+                userMessage, answer, normalizedParsedSource, evidenceContext);
+        String normalizedAdjudicatedSource = normalizeSourceLabel(adjudicatedSource);
+        if (normalizedAdjudicatedSource.equalsIgnoreCase("unknown")) {
+            return SOURCE_RULE_FALLBACK;
+        }
+        return normalizedAdjudicatedSource;
+    }
+
+    private String normalizeSourceLabel(String source) {
+        if (source == null) {
+            return "unknown";
+        }
+        String normalized = source.trim().toUpperCase().replace(' ', '_');
+        if (normalized.equals("POLICYRAG")) {
+            return "POLICY_RAG";
+        }
+        if (normalized.equals("AGENT_ESCALATION")) {
             return SOURCE_AGENT_HANDOFF;
         }
-
-        if (!parsedSource.equalsIgnoreCase("NONE") && !parsedSource.equalsIgnoreCase("unknown")) {
-            return parsedSource;
-        }
-        if (content.contains("i can only help with reservation details")
-                || content.contains("contact customer service")) {
-            return SOURCE_OUT_OF_SCOPE;
-        }
-        return SOURCE_RULE_FALLBACK;
+        return normalized;
     }
 
-    private boolean isNeedsVerification(String content) {
-        return content.contains("6-digit")
-                && content.contains("last name")
-                && (content.contains("booking") || content.contains("reservation"));
+    private String buildEvidenceContext(Map<String, Object> sessionData) {
+        return "isVerified=" + String.valueOf(sessionData.getOrDefault("isVerified", false)) +
+                "; reservationId=" + String.valueOf(sessionData.getOrDefault("reservationId", "")) +
+                "; lastName=" + String.valueOf(sessionData.getOrDefault("lastName", "")) +
+                "; unitId=" + String.valueOf(sessionData.getOrDefault("unitId", "")) +
+                "; latitude=" + String.valueOf(sessionData.getOrDefault("latitude", "")) +
+                "; longitude=" + String.valueOf(sessionData.getOrDefault("longitude", "")) +
+                "; reservationFacts=" + String.valueOf(sessionData.getOrDefault("reservationFacts", "")) +
+                "; propertyFacts=" + String.valueOf(sessionData.getOrDefault("propertyFacts", ""));
     }
 
-    private boolean isHumanHandoffRequest(String message, String content) {
-        boolean userAsked = message.contains("human")
-                || message.contains("agent")
-                || message.contains("representative")
-                || message.contains("real person");
-        boolean botHandoff = content.contains("connect with customer support agent")
-                || content.contains("connect with customer service")
-                || content.contains("human agent");
-        return userAsked || botHandoff;
+    private double chooseFinalConfidence(double modelReportedConfidence, double judgeConfidence, String source) {
+        if (source == null) {
+            return judgeConfidence;
+        }
+        String normalizedSource = source.trim().toUpperCase();
+        if (normalizedSource.equals("RESERVATION")
+                || normalizedSource.equals("PROPERTY")
+                || normalizedSource.equals("POLICY_RAG")
+                || normalizedSource.equals("GEOAPIFY_PLACES")) {
+            // Conservative aggregation: protects against hallucinated confidence inflation.
+            return Math.min(modelReportedConfidence, judgeConfidence);
+        }
+        return judgeConfidence;
+    }
+
+    private boolean isTrustedToolSource(String source) {
+        if (source == null) {
+            return false;
+        }
+        String normalizedSource = source.trim().toUpperCase();
+        return normalizedSource.equals("RESERVATION")
+                || normalizedSource.equals("PROPERTY")
+                || normalizedSource.equals("POLICY_RAG")
+                || normalizedSource.equals("GEOAPIFY_PLACES");
     }
 
 }

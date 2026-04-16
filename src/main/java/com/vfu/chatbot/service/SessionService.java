@@ -3,7 +3,6 @@ package com.vfu.chatbot.service;
 
 import com.vfu.chatbot.model.SessionEntity;
 import com.vfu.chatbot.repository.SessionRepository;
-import com.vfu.chatbot.service.domain.ReservationResponse;
 import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,14 +39,21 @@ public class SessionService {
             String lastName,
             String unitId) {
 
-        SessionEntity entity = SessionEntity.builder()
-                .sessionId(sessionId)
-                .reservationId(reservationId)
-                .lastName(lastName)
-                .unitId(unitId)
-                .verified(true)
-                .expiresAt(LocalDateTime.now().plusMinutes(60))
-                .build();
+        SessionEntity entity = sessionRepository.findById(sessionId)
+                .orElseGet(() -> SessionEntity.builder()
+                        .sessionId(sessionId)
+                        .reservationId("")
+                        .lastName("")
+                        .unitId("")
+                        .verified(false)
+                        .expiresAt(LocalDateTime.now().plusMinutes(60))
+                        .build());
+
+        entity.setReservationId(reservationId);
+        entity.setLastName(lastName);
+        entity.setUnitId(unitId);
+        entity.setVerified(true);
+        entity.setExpiresAt(LocalDateTime.now().plusMinutes(60));
 
         sessionRepository.save(entity);
         log.info("Cached session: {} → unitId: {}", sessionId, unitId);
@@ -80,20 +86,20 @@ public class SessionService {
     }
 
     @Transactional
-    public void cachePropertyResponse(String sessionId, String propertyJson) {
+    public void cachePropertySummary(String sessionId, String propertySummary) {
         sessionRepository.findById(sessionId).ifPresent(session -> {
-            session.setCachedPropertyResponse(propertyJson);
+            session.setCachedPropertySummary(propertySummary);
             sessionRepository.save(session);
-            log.info("Cached property response for sessionId: {}", sessionId);
+            log.info("Cached property summary for sessionId: {}", sessionId);
         });
     }
 
     @Transactional
-    public void cacheReservationResponse(String sessionId, String reservationJson) {
+    public void cacheReservationSummary(String sessionId, String reservationSummary) {
         sessionRepository.findById(sessionId).ifPresent(session -> {
-            session.setCachedReservationResponse(reservationJson);
+            session.setCachedReservationSummary(reservationSummary);
             sessionRepository.save(session);
-            log.info("Cached reservation response for sessionId: {}", sessionId);
+            log.info("Cached reservation summary for sessionId: {}", sessionId);
         });
     }
 
