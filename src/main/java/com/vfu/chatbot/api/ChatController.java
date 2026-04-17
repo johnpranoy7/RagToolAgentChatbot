@@ -1,24 +1,5 @@
 package com.vfu.chatbot.api;
 
-import com.vfu.chatbot.analytics.ChatAnalyticsService;
-import com.vfu.chatbot.model.ChatRequest;
-import com.vfu.chatbot.model.ChatResponse;
-import com.vfu.chatbot.model.SessionEntity;
-import com.vfu.chatbot.monitoring.MetricCounters;
-import com.vfu.chatbot.service.ConfidenceService;
-import com.vfu.chatbot.service.SessionService;
-import io.github.resilience4j.ratelimiter.RequestNotPermitted;
-import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
-import io.micrometer.core.annotation.Timed;
-import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -26,15 +7,47 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.vfu.chatbot.analytics.ChatAnalyticsService;
+import com.vfu.chatbot.model.ChatRequest;
+import com.vfu.chatbot.model.ChatResponse;
+import com.vfu.chatbot.model.SessionEntity;
+import com.vfu.chatbot.monitoring.MetricCounters;
+import com.vfu.chatbot.service.ConfidenceService;
+import com.vfu.chatbot.service.SessionService;
+
+import io.github.resilience4j.ratelimiter.RequestNotPermitted;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.micrometer.core.annotation.Timed;
+import lombok.extern.slf4j.Slf4j;
+
 @RestController
 @RequestMapping("/api")
 @CrossOrigin(origins = "*")
 @Slf4j
 public class ChatController {
+
+    /** Below this judge score, tool-backed answers are not shown (hallucination guard). */
+    private static final double JUDGE_PASS_THRESHOLD = 0.40;
+
     private static final String SOURCE_NEEDS_VERIFICATION = "NEEDS_VERIFICATION";
     private static final String SOURCE_AGENT_HANDOFF = "AGENT_HANDOFF";
     private static final String SOURCE_OUT_OF_SCOPE = "OUT_OF_SCOPE";
     private static final String SOURCE_RULE_FALLBACK = "RULE_FALLBACK";
+    /** Answer withheld: judge confidence too low for evidence-backed response. */
+    private static final String SOURCE_JUDGE_BLOCKED = "JUDGE_BLOCKED";
 
     @Value("${app.vfu.customerSupport.phone:}")
     private String customerSupportPhone;
@@ -72,61 +85,131 @@ public class ChatController {
         }
 
         String finalSessionId = sessionId;
-        log.info("finalsessionId: {}", finalSessionId);
-
         Map<String, Object> sessionData = getSessionDataForLLMContext(finalSessionId, sessionId);
 
         String rawResponse = callandGetResponseFromLLM(chatRequest, finalSessionId, sessionData);
+        log.info("rawResponse: {}", rawResponse);
 
-        // 2. PARSE CONFIDENCE & SOURCE (your exact format)
         String answer = extractContent(rawResponse);
         double ruleConfidence = extractConfidence(rawResponse);
         String parsedSource = extractSource(rawResponse);
-        String evidenceContext = buildEvidenceContext(sessionData);
-        String source = classifySource(parsedSource, chatRequest.message(), answer, evidenceContext);
 
-        // For API using LLM Confidence, for RAG and General Chat using LLM-AS-Judge implementation
-        double judgeConfidence = confidenceService.calculateConfidence(
-                chatRequest.message(), answer, source, ruleConfidence, evidenceContext);
-        log.info("message from rule LLM :{} and source:{}", answer, source);
-        log.info("Confidence in Controller from rule is {}, judge:{}", ruleConfidence, judgeConfidence);
-        ChatResponse chatResponse;
-        double finalConfidenceForAnalytics = chooseFinalConfidence(ruleConfidence, judgeConfidence, source);
-        chatAnalyticsService.logChat(sessionId, chatRequest.message(), answer, finalConfidenceForAnalytics,
-                source);
+        String source = classifySource(parsedSource);
 
-        if (source.equalsIgnoreCase(SOURCE_AGENT_HANDOFF)) {
-            metricCounters.incrementAgentEscalations();
-            chatResponse = new ChatResponse(answer, Math.max(judgeConfidence, 0.95), SOURCE_AGENT_HANDOFF, sessionId);
-        } else if (source.equalsIgnoreCase(SOURCE_NEEDS_VERIFICATION)) {
-            chatResponse = new ChatResponse(answer, Math.max(judgeConfidence, 0.85), SOURCE_NEEDS_VERIFICATION, sessionId);
-        } else if (source.equalsIgnoreCase(SOURCE_OUT_OF_SCOPE)) {
-            chatResponse = new ChatResponse(answer, Math.min(ruleConfidence, judgeConfidence), SOURCE_OUT_OF_SCOPE, sessionId);
-        } else if (source.equalsIgnoreCase("NONE") || source.equalsIgnoreCase("unknown") || source.equalsIgnoreCase(SOURCE_RULE_FALLBACK)) {
-            metricCounters.incrementAgentEscalations();
-            log.info("Rule fallBack response :{}", answer);
-            chatResponse = new ChatResponse(answer, Math.min(ruleConfidence, judgeConfidence), SOURCE_RULE_FALLBACK, sessionId);
-        } else if (isTrustedToolSource(source) && ruleConfidence >= 0.75) {
-            // Do not suppress valid tool-backed answers due to judge under-scoring.
-            double stabilizedConfidence = Math.min(ruleConfidence, Math.max(judgeConfidence, 0.45));
-            chatResponse = new ChatResponse(answer, stabilizedConfidence, source, sessionId);
-        } else if (judgeConfidence >= 0.4) {
-            chatResponse = new ChatResponse(answer, chooseFinalConfidence(ruleConfidence, judgeConfidence, source), source, sessionId);
-        } else {
-            // Both low → Agent escalation
-            metricCounters.incrementAgentEscalations();
-            return agentEscalation(sessionId);
+        //Calling Latest sessionData to verify against latest fetched data
+        String evidenceForJudge = buildEvidenceContextForJudge(getSessionDataForLLMContext(finalSessionId, finalSessionId), source);
+        Double judgeScore = null;
+        if (requiresLlmJudge(source)) {
+            judgeScore = confidenceService.judgeConfidence(
+                    chatRequest.message(), answer, source, evidenceForJudge);
         }
 
-        return ResponseEntity.ok()
-                .header("X-Session-ID", sessionId)  // Always return
-                .body(chatResponse);
+        log.info("message from rule LLM: {} | source: {} | ruleConfidence: {} | judge: {}",
+                answer, source, ruleConfidence, judgeScore != null ? judgeScore : "skipped");
 
+        ChatResponse chatResponse = buildResponse(answer, source, ruleConfidence, judgeScore, sessionId);
+        log.info("chatResponse: {}", chatResponse);
+        chatAnalyticsService.logChat(sessionId, chatRequest.message(), chatResponse.content(), chatResponse.confidence(), chatResponse.source());
+
+        return ResponseEntity.ok()
+                .header("X-Session-ID", sessionId)
+                .body(chatResponse);
+    }
+
+    /**
+     * LLM judge runs only for reservation, property, and policy (RAG). All other sources use the model answer
+     * and parsed {@code CONFIDENCE:} (with defaults when missing).
+     */
+    private ChatResponse buildResponse(
+            String answer,
+            String source,
+            double ruleConfidence,
+            Double judgeScore,
+            String sessionId) {
+
+        String s = source == null ? "" : source.trim().toUpperCase();
+
+        if (SOURCE_AGENT_HANDOFF.equals(s)) {
+            metricCounters.incrementAgentEscalations();
+            double c = Math.max(effectiveRuleConfidence(ruleConfidence, 0.95), 0.95);
+            return new ChatResponse(answer, c, SOURCE_AGENT_HANDOFF, sessionId);
+        }
+
+        if (SOURCE_NEEDS_VERIFICATION.equals(s)) {
+            double c = Math.max(effectiveRuleConfidence(ruleConfidence, 0.85), 0.85);
+            return new ChatResponse(answer, c, SOURCE_NEEDS_VERIFICATION, sessionId);
+        }
+
+        if (SOURCE_OUT_OF_SCOPE.equals(s)) {
+            return new ChatResponse(answer, effectiveRuleConfidence(ruleConfidence, 0.50), SOURCE_OUT_OF_SCOPE, sessionId);
+        }
+
+        if ("GREETING".equals(s)) {
+            double c = Math.max(effectiveRuleConfidence(ruleConfidence, 0.90), 0.90);
+            return new ChatResponse(answer, c, "GREETING", sessionId);
+        }
+
+        if ("NONE".equals(s) || "UNKNOWN".equals(s) || SOURCE_RULE_FALLBACK.equals(s)) {
+            metricCounters.incrementAgentEscalations();
+            return new ChatResponse(answer, effectiveRuleConfidence(ruleConfidence, 0.35), SOURCE_RULE_FALLBACK, sessionId);
+        }
+
+        // Only reservation, property, RAG: judge + 40% gate (hallucination guard).
+        if (requiresLlmJudge(s)) {
+            double js = judgeScore != null ? judgeScore : 0.0;
+            if (js < JUDGE_PASS_THRESHOLD) {
+                metricCounters.incrementAgentEscalations();
+                String safe = supportScopeMessage();
+                return new ChatResponse(safe, js, SOURCE_JUDGE_BLOCKED, sessionId);
+            }
+            return new ChatResponse(answer, js, source, sessionId);
+        }
+
+        // e.g. GEOAPIFY_PLACES: no judge — show model response and rule confidence (default if unparsed).
+        if ("GEOAPIFY_PLACES".equals(s)) {
+            return new ChatResponse(answer, effectiveRuleConfidence(ruleConfidence, 0.88), source, sessionId);
+        }
+
+        return new ChatResponse(answer, effectiveRuleConfidence(ruleConfidence, 0.55), source, sessionId);
+    }
+
+    /** Parsed model confidence, or a default when the model omitted CONFIDENCE:. */
+    private static double effectiveRuleConfidence(double parsed, double defaultWhenMissingOrTiny) {
+        if (parsed > 0.05) {
+            return Math.min(1.0, Math.max(0.0, parsed));
+        }
+        return defaultWhenMissingOrTiny;
+    }
+
+    private static boolean requiresLlmJudge(String normalizedSource) {
+        return "RESERVATION".equals(normalizedSource)
+                || "PROPERTY".equals(normalizedSource)
+                || "POLICY_RAG".equals(normalizedSource);
+    }
+
+    /**
+     * For POLICY_RAG, session does not contain retrieved chunks; the judge is told to evaluate honesty of
+     * retrieval outcomes (including no-match) rather than verbatim policy text.
+     */
+    private String buildEvidenceContextForJudge(Map<String, Object> sessionData, String source) {
+        String base = buildEvidenceContext(sessionData);
+        if (source != null && "POLICY_RAG".equalsIgnoreCase(source.trim())) {
+            return base + "; policyRagNote=Vector_retrieved_passages_are_not_persisted_in_session;"
+                    + " evaluate whether the answer reflects an honest policy search outcome.";
+        }
+        return base;
+    }
+
+    private String supportScopeMessage() {
+        String phone = customerSupportPhone != null ? customerSupportPhone : "";
+        String email = customerSupportEmail != null ? customerSupportEmail : "";
+        return "I can only help with reservation details, property information, rental policies, and nearby attractions. "
+                + "For anything else, please contact Customer Service at " + phone + " / " + email + ".";
     }
 
     private @Nullable String callandGetResponseFromLLM(ChatRequest chatRequest, String finalSessionId, Map<String, Object> sessionData) {
         return chatClient.prompt().user(u -> u.text(chatRequest.message()))
-                .system( s -> s.params(sessionData))
+                .system(s -> s.params(sessionData))
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, finalSessionId))
                 .toolContext(sessionData)
                 .call().content();
@@ -183,72 +266,83 @@ public class ChatController {
                 ));
     }
 
-    private ResponseEntity<ChatResponse> agentEscalation(String sessionId) {
-        log.info("agentEscalation for sessionId: {}", sessionId);
-        return ResponseEntity.ok()
-                .body(new ChatResponse(
-                        "I am not able to help here. Could you please connect with Customer Support Agent",
-                        0.0,
-                        "AGENT_ESCALATION",
-                        sessionId
-                ));
-    }
-
-
     private String extractContent(String rawResponse) {
-        // Accept both markdown and plain labels, e.g. "**CONFIDENCE:**" or "CONFIDENCE:"
-        Pattern metaStart = Pattern.compile("(?im)^\\s*(\\*\\*\\s*)?(CONFIDENCE|SOURCE)\\s*:\\s*(\\*\\*)?.*$");
-        Matcher matcher = metaStart.matcher(rawResponse);
-        String answerBlock = matcher.find() ? rawResponse.substring(0, matcher.start()) : rawResponse;
-        return answerBlock
-                .trim()
-                .replaceAll("(?i)^\\s*(\\*\\*\\s*)?ANSWER\\s*:\\s*(\\*\\*)?", "")
-                .trim();
+        if (rawResponse == null || rawResponse.isBlank()) {
+            return "";
+        }
+        try {
+            Pattern metaStart = Pattern.compile("(?im)^\\s*(\\*\\*\\s*)?(CONFIDENCE|SOURCE)\\s*:\\s*(\\*\\*)?.*$");
+            Matcher matcher = metaStart.matcher(rawResponse);
+            String answerBlock = matcher.find() ? rawResponse.substring(0, matcher.start()) : rawResponse;
+            return answerBlock
+                    .trim()
+                    .replaceAll("(?i)^\\s*(\\*\\*\\s*)?ANSWER\\s*:\\s*(\\*\\*)?", "")
+                    .trim();
+        } catch (RuntimeException e) {
+            log.warn("extractContent failed, using raw text: {}", e.getMessage());
+            return rawResponse.trim();
+        }
     }
 
+    /**
+     * Reads the first CONFIDENCE: value in the raw assistant message (0–1 scale, optional %).
+     */
     private double extractConfidence(String rawResponse) {
-        Pattern pattern = Pattern.compile("(?im)^\\s*(\\*\\*\\s*)?CONFIDENCE\\s*:\\s*(\\*\\*)?\\s*([0-9](?:\\.[0-9]{1,2})?)\\s*$");
-        Matcher matcher = pattern.matcher(rawResponse);
-        double confidence = 0.01;
-        if (matcher.find()) {
-            try {
-                return Double.parseDouble(matcher.group(3));
-            } catch (NumberFormatException e) {
-                log.error("Error extracting confidence", e);
-                // fall through to default below
+        if (rawResponse == null || rawResponse.isBlank()) {
+            return 0.01;
+        }
+        try {
+            // Allow: 0.92, .92, 92%, **CONFIDENCE:** 0.9
+            Matcher relaxed = Pattern.compile(
+                    "(?im)CONFIDENCE\\s*:\\s*(?:\\*\\*)?\\s*([0-9]*\\.?[0-9]+)\\s*(%)?"
+            ).matcher(rawResponse);
+            if (relaxed.find()) {
+                String num = relaxed.group(1);
+                boolean percent = relaxed.group(2) != null && !relaxed.group(2).isEmpty();
+                double v = Double.parseDouble(num);
+                if (percent) {
+                    v = v / 100.0;
+                }
+                if (v > 1.0 && !percent) {
+                    v = v / 100.0;
+                }
+                return Math.min(1.0, Math.max(0.0, v));
             }
+            if (rawResponse.contains("6-digit") && rawResponse.contains("last name")) {
+                return 0.85;
+            }
+        } catch (RuntimeException e) {
+            log.error("extractConfidence parse error: {}", e.getMessage());
         }
-        // 2. SAFETY NET: Perfect contextual responses
-        if (rawResponse.contains("6-digit") && rawResponse.contains("last name")) {
-            return 0.85;  // Perfect "ask for reservation" response
-        }
-        return confidence;
+        return 0.01;
     }
 
     private String extractSource(String rawResponse) {
-        Pattern pattern = Pattern.compile("(?im)^\\s*(\\*\\*\\s*)?SOURCE\\s*:\\s*(\\*\\*)?\\s*([^\\r\\n]+)\\s*$");
-        Matcher matcher = pattern.matcher(rawResponse);
-        if (matcher.find()) {
-            return matcher.group(3).trim();
+        if (rawResponse == null || rawResponse.isBlank()) {
+            return "unknown";
+        }
+        try {
+            Pattern pattern = Pattern.compile("(?im)^\\s*(\\*\\*\\s*)?SOURCE\\s*:\\s*(\\*\\*)?\\s*([^\\r\\n]+?)\\s*$");
+            Matcher matcher = pattern.matcher(rawResponse);
+            if (matcher.find()) {
+                return matcher.group(3).trim();
+            }
+        } catch (RuntimeException e) {
+            log.warn("extractSource failed: {}", e.getMessage());
         }
         return "unknown";
     }
 
-    private String classifySource(String parsedSource, String userMessage, String answer, String evidenceContext) {
-        String normalizedParsedSource = normalizeSourceLabel(parsedSource);
-        if (!normalizedParsedSource.equalsIgnoreCase("NONE")
-                && !normalizedParsedSource.equalsIgnoreCase("unknown")
-                && !normalizedParsedSource.equalsIgnoreCase(SOURCE_RULE_FALLBACK)) {
-            return normalizedParsedSource;
-        }
-
-        String adjudicatedSource = confidenceService.adjudicateSource(
-                userMessage, answer, normalizedParsedSource, evidenceContext);
-        String normalizedAdjudicatedSource = normalizeSourceLabel(adjudicatedSource);
-        if (normalizedAdjudicatedSource.equalsIgnoreCase("unknown")) {
+    /**
+     * Source comes only from the assistant's declared SOURCE line (no extra LLM call).
+     * Unknown or missing label maps to SOURCE_RULE_FALLBACK.
+     */
+    private String classifySource(String parsedSource) {
+        String normalized = normalizeSourceLabel(parsedSource);
+        if (normalized.equalsIgnoreCase("unknown") || normalized.isEmpty()) {
             return SOURCE_RULE_FALLBACK;
         }
-        return normalizedAdjudicatedSource;
+        return normalized;
     }
 
     private String normalizeSourceLabel(String source) {
@@ -275,31 +369,4 @@ public class ChatController {
                 "; reservationFacts=" + String.valueOf(sessionData.getOrDefault("reservationFacts", "")) +
                 "; propertyFacts=" + String.valueOf(sessionData.getOrDefault("propertyFacts", ""));
     }
-
-    private double chooseFinalConfidence(double modelReportedConfidence, double judgeConfidence, String source) {
-        if (source == null) {
-            return judgeConfidence;
-        }
-        String normalizedSource = source.trim().toUpperCase();
-        if (normalizedSource.equals("RESERVATION")
-                || normalizedSource.equals("PROPERTY")
-                || normalizedSource.equals("POLICY_RAG")
-                || normalizedSource.equals("GEOAPIFY_PLACES")) {
-            // Conservative aggregation: protects against hallucinated confidence inflation.
-            return Math.min(modelReportedConfidence, judgeConfidence);
-        }
-        return judgeConfidence;
-    }
-
-    private boolean isTrustedToolSource(String source) {
-        if (source == null) {
-            return false;
-        }
-        String normalizedSource = source.trim().toUpperCase();
-        return normalizedSource.equals("RESERVATION")
-                || normalizedSource.equals("PROPERTY")
-                || normalizedSource.equals("POLICY_RAG")
-                || normalizedSource.equals("GEOAPIFY_PLACES");
-    }
-
 }

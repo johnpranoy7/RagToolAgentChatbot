@@ -1,6 +1,5 @@
 package com.vfu.chatbot.ai;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
@@ -11,6 +10,8 @@ import org.springframework.ai.chat.memory.repository.jdbc.PostgresChatMemoryRepo
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Configuration
 public class OpenAiConfig {
@@ -80,17 +81,26 @@ public class OpenAiConfig {
             **MANDATORY RESPONSE FORMAT:**
             **ANSWER:** [Clean user message]
             **CONFIDENCE:** [A numeric score between 0.00 and 1.00]
-            **SOURCE:** [Exact source from rules below]
+            **SOURCE:** [Exactly one label from SOURCE RULES below — must match how you produced the answer]
+            
+            **SOURCE LOCK (MANDATORY — prevents wrong labels):**
+            - RESERVATION → ONLY if this turn you called reservation_info_tool (or isVerified=true and you answered using reservationFacts / tool output). NOT because the user mentioned "reservation" in their question.
+            - PROPERTY → ONLY if this turn you called property_info_tool (or answered using propertyFacts from a prior property tool result in this conversation).
+            - POLICY_RAG → ONLY if this turn you called policy_rag_tool and the ANSWER reflects policy content or an honest NO_POLICY_MATCH from that tool.
+            - GEOAPIFY_PLACES → ONLY if this turn you called nearby_places_tool.
+            - If you did NOT call that tool (or have no matching facts from it), you MUST NOT use that SOURCE label.
             
             **SOURCE RULES (MANDATORY):**
-            - greeting detected (hey, hi, hello) → GREETING
-            - policy_rag_tool used → POLICY_RAG
-            - reservation_info_tool/session reservation facts used → RESERVATION
-            - property_info_tool/session property facts used → PROPERTY
-            - nearby_places_tool used → GEOAPIFY_PLACES
+            - greeting only (hey/hi/hello with no reservation/property/policy/nearby intent) → GREETING
+            - greeting + reservation/booking/dates intent → follow RESERVATION / NEEDS_VERIFICATION rules, NOT GREETING
+            - policy_rag_tool used this turn → POLICY_RAG
+            - reservation_info_tool used this turn OR (isVerified=true and ANSWER is grounded in reservationFacts/tool output) → RESERVATION
+            - property_info_tool used this turn OR ANSWER grounded in propertyFacts from tool → PROPERTY
+            - nearby_places_tool used this turn → GEOAPIFY_PLACES
             - asking for reservation ID + last name → NEEDS_VERIFICATION
             - out-of-context question (not about reservation/property/policy/nearby places) → OUT_OF_SCOPE with low confidence and support handoff
-            - no trustworthy data available for an in-scope question → NONE and direct to support
+            - no trustworthy data / cannot answer from tools or session facts → NONE and direct to support
+            - generic scope / "I can only help with reservation details…" help line (see LOW CONFIDENCE RULE) → SUPPORT_SCOPE (never RESERVATION)
             
             **nearby_places_tool WORKFLOW:**
             1. User: "What's nearby?", "Restaurants near me?", "Grocery store?"
@@ -126,10 +136,25 @@ public class OpenAiConfig {
             - enddate = Check-out
             - ALWAYS use reservation_info_tool dates for check-in/out questions
             
-            **LOW CONFIDENCE RULE (MANDATORY):**
-            If confidence <0.75 →
+            **LOW CONFIDENCE / SUPPORT_SCOPE TEMPLATE (use ONLY when listed below — never for verification):**
+            
+            **NEVER use this SUPPORT_SCOPE template when:**
+            - isVerified=false AND the user asks about their reservation, booking, confirmation, check-in/out dates, or stay details.
+              → In that case you MUST ask for 6-digit confirmation ID + last name (NEEDS_VERIFICATION workflow), with **CONFIDENCE** at least **0.85** and **SOURCE: NEEDS_VERIFICATION**.
+              → That is an in-scope, high-confidence action — NOT "low confidence" and NOT the generic scope paragraph.
+            
+            **Use the SUPPORT_SCOPE template ONLY when ALL apply:**
+            - The user's question is clearly outside what you handle (not policy, not reservation/property after verification path, not nearby places after verification), OR they insist on unrelated topics after you explained scope; AND
+            - You are NOT in the situation above (not an unverified reservation-date question).
+            
+            When you do use it, output exactly:
             **ANSWER:** "I can only help with reservation details, property information, rental policies and nearby attractions. Please contact Customer Service at {customerSupportPhone} / {customerSupportEmail} for other questions."
-            **SOURCE:** NONE
+            **CONFIDENCE:** 0.55
+            **SOURCE:** SUPPORT_SCOPE
+            Do NOT use RESERVATION, PROPERTY, POLICY_RAG, or GEOAPIFY_PLACES for this template.
+            
+            **Separate rule — unverified but in-scope reservation help:**
+            If isVerified=false and user wants reservation dates/details: your CONFIDENCE in asking for ID+last name should be **0.85–0.95** (you know exactly what to do). Never drop below 0.75 for that reply.
             """;
 
     @Bean
