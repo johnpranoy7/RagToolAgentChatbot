@@ -154,7 +154,7 @@ public class ChatController {
             return new ChatResponse(answer, effectiveRuleConfidence(ruleConfidence, 0.35), SOURCE_RULE_FALLBACK, sessionId);
         }
 
-        // Only reservation, property, RAG: judge + 40% gate (hallucination guard).
+        // Only reservation and property: judge + 40% gate (hallucination guard).
         if (requiresLlmJudge(s)) {
             double js = judgeScore != null ? judgeScore : 0.0;
             if (js < JUDGE_PASS_THRESHOLD) {
@@ -163,6 +163,11 @@ public class ChatController {
                 return new ChatResponse(safe, js, SOURCE_JUDGE_BLOCKED, sessionId);
             }
             return new ChatResponse(answer, js, source, sessionId);
+        }
+
+        // POLICY_RAG: judge skipped (retrieved policy chunks are not available to judge evidence context).
+        if ("POLICY_RAG".equals(s)) {
+            return new ChatResponse(answer, effectiveRuleConfidence(ruleConfidence, 0.88), source, sessionId);
         }
 
         // e.g. GEOAPIFY_PLACES: no judge — show model response and rule confidence (default if unparsed).
@@ -183,8 +188,7 @@ public class ChatController {
 
     private static boolean requiresLlmJudge(String normalizedSource) {
         return "RESERVATION".equals(normalizedSource)
-                || "PROPERTY".equals(normalizedSource)
-                || "POLICY_RAG".equals(normalizedSource);
+                || "PROPERTY".equals(normalizedSource);
     }
 
     /**
