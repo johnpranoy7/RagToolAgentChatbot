@@ -1,7 +1,6 @@
 package com.vfu.chatbot.model;
 
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -53,11 +52,11 @@ public class SessionEntity {
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
 
-    @Column(name = "cached_property_response", columnDefinition = "TEXT")
-    private String cachedPropertyResponse;
+    @Column(name = "cached_property_summary", columnDefinition = "TEXT")
+    private String cachedPropertySummary;
 
-    @Column(name = "cached_reservation_response", columnDefinition = "TEXT")
-    private String cachedReservationResponse;
+    @Column(name = "cached_reservation_summary", columnDefinition = "TEXT")
+    private String cachedReservationSummary;
 
     @PrePersist
     @PreUpdate

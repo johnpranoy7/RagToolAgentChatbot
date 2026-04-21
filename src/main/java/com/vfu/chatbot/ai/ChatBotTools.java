@@ -13,8 +13,6 @@ import com.vfu.chatbot.model.SessionEntity;
 import com.vfu.chatbot.service.GeoapifyPlacesApiService;
 import com.vfu.chatbot.service.SessionService;
 import com.vfu.chatbot.service.domain.GeoapifyResponse;
-import com.vfu.chatbot.service.domain.PropertyResponse;
-import com.vfu.chatbot.service.domain.ReservationResponse;
 
 import io.micrometer.core.annotation.Timed;
 import lombok.extern.slf4j.Slf4j;
@@ -50,7 +48,7 @@ public class ChatBotTools {
             The propertyId is automatically retrieved from the verified session.
             Results are cached — safe to call multiple times for different property questions.
             """)
-    public PropertyResponse property_info_tool(ToolContext toolContext)
+    public String property_info_tool(ToolContext toolContext)
             throws AiToolException {
 
         String sessionId = String.valueOf(toolContext.getContext().get("sessionId"));
@@ -64,7 +62,7 @@ public class ChatBotTools {
 
             log.info("Property Tool search requested for sessionId:{}, propertyId:{}", activeSession.get(), propertyId);
 
-            return streamXOrchestrator.getPropertyResponse(activeSession.get(), sessionId);
+            return streamXOrchestrator.getPropertySummary(activeSession.get(), sessionId);
 
         } catch (Exception ex) {
             log.error("UNEXPECTED ERROR in property_info_tool for sessionId:'{}' : {}",
@@ -80,7 +78,7 @@ public class ChatBotTools {
             Requires confirmationId (6-digit) and lastName exactly as on booking.
             Results are cached — returns instantly if already verified.
             """)
-    public ReservationResponse reservation_info_tool(
+    public String reservation_info_tool(
             @ToolParam(description = "6-digit confirmation ID") String confirmationId,
             @ToolParam(description = "Last name EXACTLY as on booking") String lastName, ToolContext toolContext)
             throws AiToolException {
@@ -94,7 +92,7 @@ public class ChatBotTools {
         log.info("Reservation tool called for sessionId:{}, confirmationId:{}, lastName:{}",
                 sessionId, confirmationId, lastName);
 
-        return streamXOrchestrator.getReservationResponse(sessionId, confirmationId, lastName);
+        return streamXOrchestrator.getReservationSummary(sessionId, confirmationId, lastName);
     }
 
     @Timed(value = "chatbot.tool.nearby_places", description = "Geoapify places lookup")
@@ -162,6 +160,5 @@ public class ChatBotTools {
             default -> "tourism.attraction,tourism.sights,heritage,leisure.park,leisure.picnic";  // Your spec defaults
         };
     }
-
 
 }

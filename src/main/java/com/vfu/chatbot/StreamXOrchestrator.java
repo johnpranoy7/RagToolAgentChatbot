@@ -1,9 +1,9 @@
 package com.vfu.chatbot;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vfu.chatbot.exception.AiToolException;
 import com.vfu.chatbot.model.SessionEntity;
 import com.vfu.chatbot.service.SessionService;
+import com.vfu.chatbot.service.StreamXFactsFormatter;
 import com.vfu.chatbot.service.StreamXService;
 import com.vfu.chatbot.service.domain.PropertyResponse;
 import com.vfu.chatbot.service.domain.ReservationResponse;
@@ -18,51 +18,62 @@ public class StreamXOrchestrator {
 
     private final StreamXService streamXService;
     private final SessionService sessionService;
-    private final ObjectMapper objectMapper;
+    private final StreamXFactsFormatter factsFormatter;
 
-    public StreamXOrchestrator(StreamXService streamXService, SessionService sessionService, ObjectMapper objectMapper) {
+    public StreamXOrchestrator(StreamXService streamXService, SessionService sessionService,
+                               StreamXFactsFormatter factsFormatter) {
         this.streamXService = streamXService;
         this.sessionService = sessionService;
-        this.objectMapper = objectMapper;
+        this.factsFormatter = factsFormatter;
     }
 
-    public PropertyResponse getPropertyResponse(SessionEntity activeSession, String sessionId) throws AiToolException {
-        PropertyResponse propertyInfo;
-        if (activeSession.getCachedPropertyResponse() != null) {
-            log.info(">>> property_info_tool CACHE HIT for sessionId:{}", sessionId);
-            try {
-                propertyInfo = objectMapper.readValue(
-                        activeSession.getCachedPropertyResponse(), PropertyResponse.class);
-            } catch (Exception e) {
-                log.warn("Cache deserialize failed, falling back to API: {}", e.getMessage());
-                propertyInfo = fetchAndCacheProperty(activeSession, sessionId);
-            }
-        } else {
-            log.info("property_info_tool call to StreamX API for sessionId:{}", sessionId);
-            propertyInfo = fetchAndCacheProperty(activeSession, sessionId);
+    /**
+     * Returns cached property summary when present; otherwise loads from StreamX and caches summary only.
+     */
+    public String getPropertySummary(SessionEntity activeSession, String sessionId) throws AiToolException {
+        String cached = activeSession.getCachedPropertySummary();
+        if (cached != null && !cached.isBlank()) {
+            log.info(">>> property_info_tool CACHE HIT (summary) for sessionId:{}", sessionId);
+            return cached;
         }
-        return propertyInfo;
+        log.info("property_info_tool call to StreamX API for sessionId:{}", sessionId);
+        return fetchAndCachePropertySummary(activeSession, sessionId);
     }
 
-    private PropertyResponse fetchAndCacheProperty(SessionEntity session,
-                                                         String sessionId) throws AiToolException {
+    /**
+     * Returns cached reservation summary when present; otherwise fetches from StreamX, validates
+     * confirmation id and last name against the API payload, then caches summary only.
+     */
+    public String getReservationSummary(String sessionId, String confirmationId, String lastName) throws AiToolException {
+        Optional<SessionEntity> activeSession = sessionService.getActiveSession(sessionId);
+        if (activeSession.isPresent()) {
+            String cached = activeSession.get().getCachedReservationSummary();
+            if (cached != null && !cached.isBlank()) {
+                log.info(">>> reservation_info_tool CACHE HIT (summary) for sessionId:{}", sessionId);
+                return cached;
+            }
+        }
+
+        log.info(">>> reservation_info_tool calling StreamX API for sessionId:{}", sessionId);
+        return fetchAndCacheReservationSummary(sessionId, confirmationId, lastName);
+    }
+
+    private String fetchAndCachePropertySummary(SessionEntity session, String sessionId) throws AiToolException {
         String propertyId = session.getUnitId();
-        if (!propertyId.matches("\\d+")) {
+        if (propertyId == null || !propertyId.matches("\\d+")) {
             throw new AiToolException("Invalid propertyId. Must be numeric ID from reservation.");
         }
         try {
             PropertyResponse propertyInfo = streamXService.getPropertyInfo(propertyId);
-            if (propertyInfo == null) throw new AiToolException("Property not found");
+            if (propertyInfo == null) {
+                throw new AiToolException("Property not found");
+            }
 
-            // Update lat/long in session
-            sessionService.updateSessionLocation(
-                    sessionId, propertyInfo.getLatitude(), propertyInfo.getLongitude());
+            sessionService.updateSessionLocation(sessionId, propertyInfo.getLatitude(), propertyInfo.getLongitude());
 
-            // Cache the full response
-            sessionService.cachePropertyResponse(
-                    sessionId, objectMapper.writeValueAsString(propertyInfo));
-
-            return propertyInfo;
+            String summary = factsFormatter.propertyFacts(propertyInfo);
+            sessionService.cachePropertySummary(sessionId, summary);
+            return summary;
         } catch (AiToolException ex) {
             throw ex;
         } catch (Exception e) {
@@ -71,31 +82,8 @@ public class StreamXOrchestrator {
         }
     }
 
-
-    public ReservationResponse getReservationResponse(String sessionId,
-                                                      String confirmationId,
-                                                      String lastName) throws AiToolException {
-
-        Optional<SessionEntity> activeSession = sessionService.getActiveSession(sessionId);
-        if (activeSession.isPresent()
-                && activeSession.get().getCachedReservationResponse() != null) {
-            log.info(">>> reservation_info_tool CACHE HIT for sessionId:{}", sessionId);
-            try {
-                return objectMapper.readValue(
-                        activeSession.get().getCachedReservationResponse(),
-                        ReservationResponse.class);
-            } catch (Exception e) {
-                log.warn("Reservation cache deserialize failed, falling back to API: {}", e.getMessage());
-            }
-        }
-
-        log.info(">>> reservation_info_tool calling StreamX API for sessionId:{}", sessionId);
-        return fetchAndCacheReservation(sessionId, confirmationId, lastName);
-    }
-
-    private ReservationResponse fetchAndCacheReservation(String sessionId,
-                                                         String confirmationId,
-                                                         String lastName) throws AiToolException {
+    private String fetchAndCacheReservationSummary(String sessionId, String confirmationId, String lastName)
+            throws AiToolException {
         ReservationResponse reservationInfo;
         try {
             reservationInfo = streamXService.getReservationInfo(confirmationId);
@@ -111,29 +99,26 @@ public class StreamXOrchestrator {
             throw new AiToolException("Reservation not found");
         }
 
-        // Verify last name matches
-        String resLastName = reservationInfo.getLastName();
-        String resId = reservationInfo.getConfirmationId();
-        if ((resId == null || !resId.equalsIgnoreCase(confirmationId)) ||
-                (lastName == null || !lastName.equalsIgnoreCase(resLastName))) {
-            throw new AiToolException("Reservation ID and last name don't match");
-        }
+        verifyReservationMatches(reservationInfo, confirmationId, lastName);
 
-        // Save verified session
         sessionService.saveVerifiedReservation(
                 sessionId, confirmationId, lastName, reservationInfo.getUnitId());
 
-        // Cache the response
-        try {
-            sessionService.cacheReservationResponse(
-                    sessionId, objectMapper.writeValueAsString(reservationInfo));
-        } catch (Exception e) {
-            log.warn("Failed to cache reservation response: {}", e.getMessage());
-        }
+        String summary = factsFormatter.reservationFacts(reservationInfo);
+        sessionService.cacheReservationSummary(sessionId, summary);
 
-        log.info("Reservation verified and cached. unitId:{}", reservationInfo.getUnitId());
-        return reservationInfo;
+        log.info("Reservation verified and cached (summary only). unitId:{}", reservationInfo.getUnitId());
+        return summary;
     }
 
-
+    private static void verifyReservationMatches(ReservationResponse reservationInfo,
+                                                 String confirmationId,
+                                                 String lastName) throws AiToolException {
+        String resLastName = reservationInfo.getLastName();
+        String resId = reservationInfo.getConfirmationId();
+        if ((resId == null || !resId.equalsIgnoreCase(confirmationId))
+                || (lastName == null || !lastName.equalsIgnoreCase(resLastName))) {
+            throw new AiToolException("Reservation ID and last name don't match");
+        }
+    }
 }
