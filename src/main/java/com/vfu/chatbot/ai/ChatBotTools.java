@@ -44,9 +44,9 @@ public class ChatBotTools {
 
     @Timed(value = "chatbot.tool.property_info", description = "Property lookup")
     @Tool(description = """
-            Returns property details for the user's verified reservation.
-            The propertyId is automatically retrieved from the verified session.
-            Results are cached — safe to call multiple times for different property questions.
+                Returns property details for the user's verified reservation.
+                The propertyId is automatically retrieved from the verified session.
+                Results are cached — safe to call multiple times for different property questions.
             """)
     public String property_info_tool(ToolContext toolContext)
             throws AiToolException {
