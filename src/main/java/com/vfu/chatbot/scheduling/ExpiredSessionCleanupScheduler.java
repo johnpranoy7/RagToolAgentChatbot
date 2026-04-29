@@ -14,10 +14,9 @@ public class ExpiredSessionCleanupScheduler {
     private final SessionService sessionService;
 
     /**
-     * Wall clock: every hour at minute :00 and :30 (Spring 6-field cron: sec min hour dom month dow).
-     * Override with {@code app.session.cleanup-cron}.
+     * Daily at 23:00 (11:00 PM) server default time zone — Spring 6-field cron: sec min hour dom month dow.
      */
-    @Scheduled(cron = "${app.session.cleanup-cron:0 0,30 * * * *}")
+    @Scheduled(cron = "${app.chat-memory.cleanup-cron:0 0 23 * * *}")
     public void cleanupExpiredSessions() {
         log.info("Scheduled job: expired session cleanup starting");
         sessionService.cleanupExpiredSessions();
