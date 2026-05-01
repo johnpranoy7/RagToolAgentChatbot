@@ -1,0 +1,65 @@
+
+Helpful Articles and Projects
+--------------------------------
+https://github.com/spring-projects/spring-ai-examples
+https://github.com/spring-ai-community/awesome-spring-ai?tab=readme-ov-file#code-examples
+https://docs.spring.io/spring-ai/reference/api/chatclient.html
+
+https://github.com/spring-projects/spring-ai-examples
+https://github.com/spring-ai-community/awesome-spring-ai?tab=readme-ov-file#code-examples
+
+Spring AI Docs
+https://docs.spring.io/spring-ai/reference/api/chatclient.html
+https://spring.io/blog/2025/12/23/spring-ai-tool-argument-augmenter-tzolov
+https://spring.io/blog/2025/11/10/spring-ai-llm-as-judge-blog-post
+
+
+
+Endpoints:
+-----------
+ http://localhost:8080/
+ http://localhost:9090/targets  ->Prometheus
+ http://localhost:3000   -> Grafana		username:admin pwd:admin
+
+
+
+Docker Installation and useful Commands:
+------------------------------------------
+Server deployment:
+# Install required tools
+sudo dnf install -y yum-utils
+
+# Add Docker's official repo
+sudo yum-config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+
+# Install Docker
+sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Start and enable Docker
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# Add your user to docker group
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Verify
+docker --version
+docker compose version
+
+
+### Useful commands on server  ###
+scp .\prometheus.yml  administrator@10.96.61.141:/home/administrator/Desktop/
+
+# Stop everything
+docker compose down
+
+# Restart just the app
+docker compose restart app
+
+# See live logs
+docker compose logs -f app
+
+# Rebuild after code change
+docker compose up --build -d app
+```
