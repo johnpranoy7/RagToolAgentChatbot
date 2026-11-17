@@ -1,6 +1,6 @@
 # Vacations for YOU — RAG Tool-Agent Chatbot
 
-# Vacations for YOU — RAG Tool-Agent Chatbot
+# Vacations for YOU — RAG Tool-Agents Chatbot
 
 A Spring Boot application that powers a **branded web chat** for **Vacations for YOU** rental support. Guests ask questions in natural language; an **OpenAI** model (via **Spring AI**) decides when to call **tools** for policies, reservations, property details, and nearby places. Answers are grounded in **RAG** (vector search over policy documents) and **read-only** integrations where verification is required.
 
